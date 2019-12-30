@@ -45,9 +45,11 @@ def start():
     """
     print(json.dumps(data))
 
-    color = "#00FF00"
+    color = "#993333"
+    head = "sand-worm"
+    tail = "pixel"
 
-    return start_response(color)
+    return start_response(color, head, tail)
 
 
 @bottle.post('/move')
