@@ -4,7 +4,7 @@ import random
 import bottle
 
 from api import ping_response, start_response, move_response, end_response
-
+from utils.arena import Arena
 
 @bottle.route('/')
 def index():
@@ -60,10 +60,43 @@ def move():
     TODO: Using the data from the endpoint request object, your
             snake AI must choose a direction to move in.
     """
-    print(json.dumps(data))
+    # Unpack game data
+    #print(json.dumps(data))
+    game_id = data["game"]["id"]
+    turn = data["turn"]
 
-    directions = ['up', 'down', 'left', 'right']
-    direction = random.choice(directions)
+    b_width = data["board"]["width"]
+    b_height = data["board"]["height"]
+    foods = data["board"]["food"]
+    snakes = data["board"]["snakes"]
+    ends = [(snake[0], snake[-1]) for snake in snakes]
+    
+    health = data["you"]["health"]
+    body = data["you"]["body"]
+    head = body[0]
+    tail = body[-1]
+    obstacles = []
+    for snake in snakes:
+        obstacles.extend(snake[:-1])
+
+    # Initialize/update arena
+    arena = Arena(
+        b_width,
+        b_height,
+        player_h=head,
+        player_t=tail,
+        obstacles=obstacles,
+        ends=ends,
+        foods=foods
+        )    
+    # Pick a random best direction
+    directions = arena.rank_moves()
+    if directions:
+        bests = [move for rank, move in directions if rank == directions[0][0]]
+        direction = random.choice(bests)
+    # If no legal moves... time to die
+    else:
+        direction = 'up'
 
     return move_response(direction)
 
