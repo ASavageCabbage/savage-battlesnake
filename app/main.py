@@ -43,11 +43,22 @@ def start():
             initialize your snake state here using the
             request's data if necessary.
     """
-    print(json.dumps(data))
+    #print(json.dumps(data))
 
     color = "#993333"
     head = "sand-worm"
     tail = "pixel"
+    print(
+        '--',
+        f'Welcome, contestant.',
+        '=== TA\'AURIC, ASPECT OF WAR ===',
+        '',
+        '<STYLE>',
+        f'color: {color}',
+        f'head: {head}',
+        f'tail: {tail}',
+        sep='\n'
+        )
 
     return start_response(color, head, tail)
 
@@ -109,7 +120,7 @@ def end():
     TODO: If your snake AI was stateful,
         clean up any stateful objects here.
     """
-    print(json.dumps(data))
+    #print(json.dumps(data))
 
     return end_response()
 
