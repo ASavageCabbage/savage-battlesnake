@@ -72,6 +72,11 @@ class Arena(object):
         hx = self.head['x']
         hy = self.head['y']
         new_pos = (hx+dx, hy+dy)
+        # Prevent running into walls
+        width = self._position_grid.shape[0]
+        height = self._position_grid.shape[1]
+        if any(new_pos < 0) or new_pos[0] >= width or new_pos[1] >= height:
+            return False
         # If moving toward food, mark tail as certain death
         if new_pos in self.foods:
             self._position_grid[self.tail['x']][self.tail['y']] = DEATH

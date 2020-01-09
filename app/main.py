@@ -36,8 +36,6 @@ def ping():
 
 @bottle.post('/start')
 def start():
-    data = bottle.request.json
-
     """
     TODO: If you intend to have a stateful snake AI,
             initialize your snake state here using the
