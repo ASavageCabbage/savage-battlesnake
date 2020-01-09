@@ -50,14 +50,14 @@ def start():
     tail = "pixel"
     print(
         '--',
-        f'Welcome, contestant.',
+        'Welcome, contestant.',
         '=== TA\'AURIC, ASPECT OF WAR ===',
         '',
         '<STYLE>',
-        f'color: {color}',
-        f'head: {head}',
-        f'tail: {tail}',
-        sep='\n'
+        'color: {color}',
+        'head: {head}',
+        'tail: {tail}',
+        ##sep='\n'
         )
 
     return start_response(color, head, tail)
