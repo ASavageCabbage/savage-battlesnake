@@ -48,17 +48,17 @@ def start():
     color = "#993333"
     head = "sand-worm"
     tail = "pixel"
-    print(
+    welcome = [
         '--',
-        f'Welcome, contestant.',
+        'Welcome, contestant.',
         '=== TA\'AURIC, ASPECT OF WAR ===',
         '',
         '<STYLE>',
-        f'color: {color}',
-        f'head: {head}',
-        f'tail: {tail}',
-        sep='\n'
-        )
+        'color: {color}'.format(color),
+        'head: {head}'.format(head),
+        'tail: {tail}'.format(tail)
+    ]
+    print '\n'.join(welcome)
 
     return start_response(color, head, tail)
 
