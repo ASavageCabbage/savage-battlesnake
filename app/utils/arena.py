@@ -3,10 +3,10 @@ import numpy
 DEATH = 2
 DANGER = 1
 MOVE_DICT = {
-    'up': (1, 0),
-    'down': (-1, 0),
-    'left': (0, -1),
-    'right': (0, 1)
+    'up': (0, -1),
+    'down': (0, 1),
+    'left': (-1, 0),
+    'right': (1, 0)
 }
 class Arena(object):
     '''
@@ -75,7 +75,7 @@ class Arena(object):
         # Prevent running into walls
         width = self._position_grid.shape[0]
         height = self._position_grid.shape[1]
-        if any(new_pos < 0) or new_pos[0] >= width or new_pos[1] >= height:
+        if new_pos[0] < 0 or new_pos[1] < 0 or new_pos[0] >= width or new_pos[1] >= height:
             return False
         # If moving toward food, mark tail as certain death
         if new_pos in self.foods:
@@ -97,5 +97,6 @@ class Arena(object):
                     self._position_grid[new_pos[0]][new_pos[1]],
                     move
                 ))
-        legal_moves.sort()
+        print(legal_moves)
+        legal_moves.sort() 
         return legal_moves

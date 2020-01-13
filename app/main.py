@@ -52,9 +52,9 @@ def start():
         '=== TA\'AURIC, ASPECT OF WAR ===',
         '',
         '<STYLE>',
-        'color: {color}'.format(color),
-        'head: {head}'.format(head),
-        'tail: {tail}'.format(tail)
+        'color: {}'.format(color),
+        'head: {}'.format(head),
+        'tail: {}'.format(tail)
     ]
     print '\n'.join(welcome)
 
@@ -70,18 +70,19 @@ def move():
             snake AI must choose a direction to move in.
     """
     # Unpack game data
-    #print(json.dumps(data))
+    print(json.dumps(data, indent=4))
     game_id = data["game"]["id"]
     turn = data["turn"]
 
     b_width = data["board"]["width"]
     b_height = data["board"]["height"]
     foods = data["board"]["food"]
-    snakes = data["board"]["snakes"]
-    ends = [(snake[0], snake[-1]) for snake in snakes]
-    
     health = data["you"]["health"]
     body = data["you"]["body"]
+    name = data["you"]["name"]
+    snakes = [snake["body"][:-1] for snake in data["board"]["snakes"] if snake["name"] != name]
+    ends = [[snake[0], snake[-1]] for snake in snakes]
+    snakes.append(body[1:])
     head = body[0]
     tail = body[-1]
     obstacles = []
@@ -97,7 +98,7 @@ def move():
         obstacles=obstacles,
         ends=ends,
         foods=foods
-        )    
+        )   
     # Pick a random best direction
     directions = arena.rank_moves()
     if directions:
