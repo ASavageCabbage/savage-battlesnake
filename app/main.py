@@ -4,7 +4,7 @@ import random
 import bottle
 
 from api import ping_response, start_response, move_response, end_response
-
+from utils.arena import Arena
 
 @bottle.route('/')
 def index():
@@ -36,18 +36,27 @@ def ping():
 
 @bottle.post('/start')
 def start():
-    data = bottle.request.json
-
     """
     TODO: If you intend to have a stateful snake AI,
             initialize your snake state here using the
             request's data if necessary.
     """
-    print(json.dumps(data))
+    #print(json.dumps(data))
 
     color = "#993333"
     head = "sand-worm"
     tail = "pixel"
+    welcome = [
+        '--',
+        'Welcome, contestant.',
+        '=== TA\'AURIC, ASPECT OF WAR ===',
+        '',
+        '<STYLE>',
+        'color: {}'.format(color),
+        'head: {}'.format(head),
+        'tail: {}'.format(tail)
+    ]
+    print '\n'.join(welcome)
 
     return start_response(color, head, tail)
 
@@ -60,10 +69,44 @@ def move():
     TODO: Using the data from the endpoint request object, your
             snake AI must choose a direction to move in.
     """
-    print(json.dumps(data))
+    # Unpack game data
+    print(json.dumps(data, indent=4))
+    game_id = data["game"]["id"]
+    turn = data["turn"]
 
-    directions = ['up', 'down', 'left', 'right']
-    direction = random.choice(directions)
+    b_width = data["board"]["width"]
+    b_height = data["board"]["height"]
+    foods = data["board"]["food"]
+    health = data["you"]["health"]
+    body = data["you"]["body"]
+    name = data["you"]["name"]
+    snakes = [snake["body"][:-1] for snake in data["board"]["snakes"] if snake["name"] != name]
+    ends = [[snake[0], snake[-1]] for snake in snakes]
+    snakes.append(body[1:])
+    head = body[0]
+    tail = body[-1]
+    obstacles = []
+    for snake in snakes:
+        obstacles.extend(snake[:-1])
+
+    # Initialize/update arena
+    arena = Arena(
+        b_width,
+        b_height,
+        player_h=head,
+        player_t=tail,
+        obstacles=obstacles,
+        ends=ends,
+        foods=foods
+        )   
+    # Pick a random best direction
+    directions = arena.rank_moves()
+    if directions:
+        bests = [move for rank, move in directions if rank == directions[0][0]]
+        direction = random.choice(bests)
+    # If no legal moves... time to die
+    else:
+        direction = 'up'
 
     return move_response(direction)
 
@@ -76,7 +119,7 @@ def end():
     TODO: If your snake AI was stateful,
         clean up any stateful objects here.
     """
-    print(json.dumps(data))
+    #print(json.dumps(data))
 
     return end_response()
 
