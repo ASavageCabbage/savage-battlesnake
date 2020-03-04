@@ -1,7 +1,12 @@
 import numpy
+import math
 
-DEATH = 2
+FOODMAPVALS = [0, 3, 2, 1]
+DEATH = 10
+HILLTOP = -10 # Value for all points from which to propagate hills
 DANGER = 1
+FOOD = -1
+DECAYFACTOR = 1 # This is probably not a good decay factor
 MOVE_DICT = {
     'up': (0, -1),
     'down': (0, 1),
@@ -27,13 +32,15 @@ class Arena(object):
         ends -- List of {'x':x, 'y':y} coordinates of opponent ends (head, tail)
         foods -- List of {'x':x, 'y':y} coordinates of food
         '''
-        # Initialize array to represent arena
-        self._position_grid = numpy.zeros((width, height))
+        # Initialize array to non-zero default value (1)
+        self._position_grid = numpy.ones((width, height))
         # Initialize player head and tail
         self.head = kwargs.get('player_h', {'x':0, 'y':0})
         self.tail = kwargs.get('player_t', {'x':0, 'y':0})
         # Mark positions of food
         self.foods = kwargs.get('foods', [])
+        for food in foods:
+            self._position_grid[food['x']][food['y']] = FOOD
         # Mark obstacles (certain death zones)
         obstacles = kwargs.get('obstacles', [])
         for obs in obstacles:
@@ -44,7 +51,9 @@ class Arena(object):
             # Squares around head are dangerous
             hx = hd['x']
             hy = hd['y']
-            self._position_grid[hx][hy] = DEATH
+            self._position_grid[hx][hy] = HILLTOP
+            # Pretty sure danger zone stuff is unnecessary now but deleting is scary
+            '''
             danger_zone = [
                 (hx-1,hy),
                 (hx+1,hy),
@@ -54,12 +63,62 @@ class Arena(object):
             for x, y in danger_zone:
                 if self._position_grid[x][y] < DANGER:
                     self._position_grid[x][y] = DANGER
+            '''
             # Tail could grow if head is in reach of any food
+            # Should tail be treated like head? I did for now
             tx = tl['x']
             ty = tl['y']
+            self._position_grid[tx][ty] = HILLTOP
+
+            '''
             if ([coord for coord in self.foods if coord in danger_zone]
                 and self._position_grid[tx][ty] < DANGER):
                 self._position_grid[tx][ty] = DANGER
+            '''
+            self.findHillsAndWells()
+
+    def findHillsAndWells(self):
+        '''
+        Find points to centre hills and wells at then calls propogatehills and wells accordingly
+        '''
+        #Iterate over arena
+        for x in self._position_grid:
+            for y in self._position_grid[x]:
+                # If current grid point is hilltop set it to death and create hill centred on it
+                if self._position_grid[x][y] == HILLTOP:
+                    self._position_grid[x][y] = DEATH
+                    self.propagateHills(x, y)
+                # If current point is well then propagate well on that point.
+                elif self._position_grid[x][y] == FOOD:
+                    self.propagateWells(x, y)
+
+    def propagateHills(self, hillx, hilly):
+        '''
+        Add to danger value of each point based on distance from hilltop
+        hillx - the x coordinate of the hilltop
+        hilly - the y coordinate of the hilltop
+        '''
+        for x in self._position_grid:
+            for y in self._position_grid:
+                #calculate current point's distance from hilltop
+                if x == hillx:
+                    distance = abs(hilly - y)
+                elif y == hilly:
+                    distance = abs(hillx - x)
+                else:
+                    distance = math.sqrt((hillx - x)**2 + (hilly - y)**2)
+                self._position_grid[x][y] += self.expDecay(distance)
+    
+    def propagateWells(self, wellx, welly)
+        '''
+        Subtract from danger value of each point based on distance from well.
+        wellx - x coordinate of well centre
+        welly - y coordinate of well centre
+        '''
+        return
+
+    def expDecay(self, x):
+        return DEATH*(1-DECAYFACTOR)**x
 
     def check_move(self, move):
         '''Checks if move is legal (not certain death)
