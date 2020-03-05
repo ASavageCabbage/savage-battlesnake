@@ -109,16 +109,50 @@ class Arena(object):
                     distance = math.sqrt((hillx - x)**2 + (hilly - y)**2)
                 self._position_grid[x][y] += self.expDecay(distance)
     
+   
     def propagateWells(self, wellx, welly)
+        #There may be a good way to combine the propogate functions 
         '''
         Subtract from danger value of each point based on distance from well.
         wellx - x coordinate of well centre
         welly - y coordinate of well centre
         '''
-        return
+        for x in self._position_grid:
+            for y in self._position_grid:
+                if x == wellx:
+                    distance = abs(welly - y)
+                if y == welly:
+                    distance = abs(wellx - x)
+                else:
+                    #need to round to nearest integer to use the FOODMAPVALS array
+                    distance = int(round(math.sqrt((wellx - x)**2 + (welly - y)**2)))
+                self._position_grid[x][y] -= FOODMAPVALS[distance]
+
 
     def expDecay(self, x):
         return DEATH*(1-DECAYFACTOR)**x
+
+    def selectMove(self):
+        #need head x and y coordinates for this. I hope this is how we get them from self.head?
+        headx = self.head[0]
+        heady = self.head[1]
+        possibleMoves = [self._position_grid[headx][heady + 1], self._position_grid[headx][heady - 1],
+         self._position_grid[headx - 1][heady], self._position_grid[headx + 1][heady]]
+        #will store the index of the minimum option
+        minMoveIndex = 0
+        #find minimum available move
+        for i in possibleMoves:
+            if (possibleMoves[minMoveIndex] < possibleMoves[i]):
+                minMoveIndex = i
+        #convert index to direction
+        if minMoveIndex == 0:
+            return "up"
+        if minMoveIndex == 1:
+            return "down"
+        if minMoveIndex == 2:
+            return "left"
+        if minMoveIndex == 3:
+            return "right"
 
     def check_move(self, move):
         '''Checks if move is legal (not certain death)
