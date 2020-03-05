@@ -39,7 +39,7 @@ class Arena(object):
         self.tail = kwargs.get('player_t', {'x':0, 'y':0})
         # Mark positions of food
         self.foods = kwargs.get('foods', [])
-        for food in foods:
+        for food in self.foods:
             self._position_grid[food['x']][food['y']] = FOOD
         # Mark obstacles (certain death zones)
         obstacles = kwargs.get('obstacles', [])
@@ -82,8 +82,8 @@ class Arena(object):
         Find points to centre hills and wells at then calls propogatehills and wells accordingly
         '''
         #Iterate over arena
-        for x in self._position_grid:
-            for y in self._position_grid[x]:
+        for x in range(len(self._position_grid)):
+            for y in range(len(self._position_grid[x])):
                 # If current grid point is hilltop set it to death and create hill centred on it
                 if self._position_grid[x][y] == HILLTOP:
                     self._position_grid[x][y] = DEATH
@@ -98,8 +98,8 @@ class Arena(object):
         hillx - the x coordinate of the hilltop
         hilly - the y coordinate of the hilltop
         '''
-        for x in self._position_grid:
-            for y in self._position_grid:
+        for x in range(len(self._position_grid)):
+            for y in range(len(self._position_grid[x])):
                 #calculate current point's distance from hilltop
                 if x == hillx:
                     distance = abs(hilly - y)
@@ -110,15 +110,15 @@ class Arena(object):
                 self._position_grid[x][y] += self.expDecay(distance)
     
    
-    def propagateWells(self, wellx, welly)
+    def propagateWells(self, wellx, welly):
         #There may be a good way to combine the propogate functions 
         '''
         Subtract from danger value of each point based on distance from well.
         wellx - x coordinate of well centre
         welly - y coordinate of well centre
         '''
-        for x in self._position_grid:
-            for y in self._position_grid:
+        for x in range(len(self._position_grid)):
+            for y in range(len(self._position_grid[x])):
                 if x == wellx:
                     distance = abs(welly - y)
                 if y == welly:
@@ -134,14 +134,14 @@ class Arena(object):
 
     def selectMove(self):
         #need head x and y coordinates for this. I hope this is how we get them from self.head?
-        headx = self.head[0]
-        heady = self.head[1]
+        headx = self.head['x']
+        heady = self.head['y']
         possibleMoves = [self._position_grid[headx][heady + 1], self._position_grid[headx][heady - 1],
          self._position_grid[headx - 1][heady], self._position_grid[headx + 1][heady]]
         #will store the index of the minimum option
         minMoveIndex = 0
         #find minimum available move
-        for i in possibleMoves:
+        for i in range(len(possibleMoves)):
             if (possibleMoves[minMoveIndex] < possibleMoves[i]):
                 minMoveIndex = i
         #convert index to direction
