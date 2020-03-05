@@ -98,11 +98,11 @@ def move():
         obstacles=obstacles,
         ends=ends,
         foods=foods
-        )   
+        )
+    arena.print_arena()
     # Pick best move from newly created heatmap
-   
-    direction = arena.selectMove()
-
+    direction = arena.rank_moves()[0]
+    print "Moving {}".format(direction)
     return move_response(direction)
 
 
