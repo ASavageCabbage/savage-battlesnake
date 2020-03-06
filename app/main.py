@@ -41,8 +41,6 @@ def start():
             initialize your snake state here using the
             request's data if necessary.
     """
-    #print(json.dumps(data))
-
     color = "#993333"
     head = "sand-worm"
     tail = "pixel"
@@ -57,52 +55,45 @@ def start():
         'tail: {}'.format(tail)
     ]
     print '\n'.join(welcome)
+    # Initialize global arena instance (keeps state)
+    global ARENA
+    data = bottle.request.json
+    b_width = data["board"]["width"]
+    b_height = data["board"]["height"]
+    ARENA = Arena(b_width, b_height)
 
     return start_response(color, head, tail)
 
 
 @bottle.post('/move')
 def move():
-    data = bottle.request.json
-
-    """
-    TODO: Using the data from the endpoint request object, your
-            snake AI must choose a direction to move in.
-    """
+    """Choose a direction to move!"""
+    global ARENA
     # Unpack game data
-    #print(json.dumps(data, indent=4))
+    data = bottle.request.json
     game_id = data["game"]["id"]
     turn = data["turn"]
-    print "\n===== TURN {} =====".format(turn)
-
-    b_width = data["board"]["width"]
-    b_height = data["board"]["height"]
-    foods = data["board"]["food"]
-    health = data["you"]["health"]
-    body = data["you"]["body"]
     name = data["you"]["name"]
-    snakes = [snake["body"][:-1] for snake in data["board"]["snakes"] if snake["name"] != name]
-    ends = [[snake[0], snake[-1]] for snake in snakes]
-    snakes.append(body[1:])
-    head = body[0]
-    tail = body[-1]
-    obstacles = []
-    for snake in snakes:
-        obstacles.extend(snake[:-1])
+    health = data["you"]["health"]
+    print "\n===== ({}) TURN {} =====".format(name, turn)
 
-    # Initialize/update arena
-    arena = Arena(
-        b_width,
-        b_height,
-        player_h=head,
-        player_t=tail,
-        obstacles=obstacles,
-        ends=ends,
-        foods=foods
-        )
-    arena.print_arena()
+    # Format data for Arena
+    body = [(seg['x'], seg['y']) for seg in data["you"]["body"]]
+    snakes = [[(s['x'], s['y']) for s in sn["body"]] for sn in data["board"]["snakes"] if sn["name"] != name]
+    foods = [(fd['x'], fd['y']) for fd in data["board"]["food"]]
+
+    # Update arena
+    ARENA.update_heatmap(body, snakes, foods)
+    ARENA.print_arena()
+    # Update turn/direction attributes
+    ARENA.update_turn(body)
     # Pick best move from newly created heatmap
-    direction = arena.rank_moves()[0]
+    directions = ARENA.rank_moves()
+    if directions:
+        direction = directions[0]
+    else:
+        direction = 'up'
+        print "GUESS I'LL DIE LMAO"
     print "Moving {}".format(direction)
     return move_response(direction)
 
