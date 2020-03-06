@@ -85,8 +85,8 @@ def move():
     # Update arena
     ARENA.update_heatmap(body, snakes, foods)
     ARENA.print_arena()
-    # Update turn/direction attributes
-    ARENA.update_turn(body)
+    # Check for self-loops
+    ARENA.check_self_loop()
     # Pick best move from newly created heatmap
     directions = ARENA.rank_moves()
     if directions:

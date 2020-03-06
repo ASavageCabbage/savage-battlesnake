@@ -67,23 +67,6 @@ class Arena(object):
         height -- height of arena (positive integer)
         '''
         self.dimensions = (width, height)
-        self.turn_state = 0
-        self.directions = []
-    
-
-    def update_turn(self, body):
-        '''Update turn state and direction of snake
-
-        Parameters:
-        body -- List of (x, y) coordinates of player body segments (head to tail)
-        '''
-        head, prev = body[0:2]
-        diff = (head[0]-prev[0], head[1]-prev[1])
-        self.directions.append(DIR_DICT[diff])
-        turn = tuple(self.directions[-2:])
-        if len(turn) < 2:
-            turn = (turn[0], turn[0])
-        self.turn_state += TURN_DICT[turn]
 
 
     def update_heatmap(self, body, snakes, foods):
@@ -213,35 +196,105 @@ class Arena(object):
     def check_self_loop(self):
         '''
         Checks if snake is about to loop in on itself
-        For now, marks self-looping as DEATH
+        For now, encourages turning away from self-loops with FORCED_DECISION
         '''
-        turn_state = self.turn_state
-        curr_dir = self.directions[0]
+        curr_dir = self.check_direction()
         hx, hy = self.body[0]
         fx, fy = MOVE_DICT[curr_dir]
-        # Case 1: Looping in on own body
-        if abs(turn_state) > 2:
-            # Check three blocks perpendicular to head
-            if fx == 0:
-                # Direction is up/down, draw danger zone left/right
-                ahead = [(hx-1, hy+fy), (hx, hy+fy), (hx+1, hy+fy)]
-            else:
-                # Direction is left/right, draw danger zone up/down
-                ahead = [(hx+fx, hy-1), (hx+fx, hy), (hx+fx, hy+1)]
-            # In the case of a self-loop...
-            if any([pos in self.body for pos in ahead]):
-                turn_away = CW if turn_state > 0 else CCW
-                dx, dy = MOVE_DICT[TURN_TO_DIRECTION[(curr_dir, turn_away)]]
-                # If outward turn is legal, reward outward turn
-                nx = hx+dx
-                ny = hy+dy
+        # Check three blocks perpendicular to head
+        if fx == 0:
+            # Direction is up/down
+            # Check for empty squares left/right
+            lt_clear = (hx-1, hy) not in self.body
+            rt_clear = (hx+1, hy) not in self.body
+            ahead = [(hx, hy+fy)]
+            # Extend danger zone left/right if potential loop
+            if lt_clear:
+                ahead.append((hx-1, hy+fy))
+            if rt_clear:
+                ahead.append((hx+1, hy+fy))
+        else:
+            # Direction is left/right
+            # Check for empty squares up/down
+            up_clear = (hx, hy-1) not in self.body
+            dn_clear = (hx, hy+1) not in self.body
+            ahead = [(hx+fx, hy)]
+            if up_clear:
+                ahead.append((hx+fx, hy-1))
+            if dn_clear:
+                ahead.append((hx+fx, hy+1))
+        ahead_segs = [pos for pos in self.body if pos in ahead]
+        # In the case of a self-loop...
+        if ahead_segs:
+            print "Potential self-loop detected!"
+            # Use segment closest to head as marker
+            ahead_seg = ahead_segs[0]
+            # Calculate chirality of loop
+            turn_state = self.turn_state(ahead_seg)
+            turn_away = CW if turn_state > 0 else CCW
+            dx, dy = MOVE_DICT[TURN_TO_DIRECTION[(curr_dir, turn_away)]]
+            # If outward turn is legal, reward outward turn
+            nx = hx+dx
+            ny = hy+dy
+            if self.within_bounds((nx, ny)):
                 next_pos_value = self._position_grid[nx][ny]
                 if next_pos_value < DEATH:
                     self._position_grid[nx][ny] = FORCED_DECISION
-        # Case 2: Forming loop with arena boundaries
-        if self.run_into_wall(curr_dir) and any([on_walls(seg) > 0 for seg in self.body[3:]]):
-            # TODO: Choose direction corresponding to greater available play area
-            pass
+
+
+    def check_direction(self):
+        '''Checks current direction snake is travelling'''
+        hx, hy = self.body[0]
+        try:
+            px, py = [seg for seg in self.body if seg != (hx, hy)][0]
+            return DIR_DICT[(hx-px, hy-py)]
+        except IndexError:
+            print "Snake body is all in one place, default to 'up' direction"
+            return UP
+
+
+    def turn_state(self, stop):
+        '''Check degree of turns from head to specified body segment
+
+        Parameters:
+        stop -- (x, y) coordinates of body segment at which to end calculation
+        '''
+        directions = []
+        prev = self.body[0]
+        for seg in self.body:
+            if seg == prev:
+                continue
+            x, y = seg
+            px, py = prev
+            dx = x - px
+            dy = y - py
+            # Insert at front of list for proper order
+            directions.insert(0, DIR_DICT[(dx, dy)])
+            if seg == stop:
+                break
+            prev = seg
+        # Transform direction list from [a, b, c, ...]
+        # to turns corresponding to [(a, b), (b, c), ...]
+        turns = []
+        prev = directions[0]
+        for direction in directions:
+            if direction == prev:
+                continue
+            turns.append(TURN_DICT[(prev, direction)])
+            prev = direction
+        return sum(turns)
+
+
+    def within_bounds(self, coords):
+        '''Checks if coordinates are within arena boundaries
+
+        Parameters:
+        coords: (x, y) coordinates of position of interest
+        '''
+        x, y = coords
+        x_lim, y_lim = self.dimensions
+        return (x >= 0 and x < x_lim and y >= 0 and y < y_lim)
+
 
     def run_into_wall(self, move):
         '''Checks if move will result in collision with arena boundaries
@@ -269,7 +322,7 @@ class Arena(object):
         if x == 1: walls += 1
         if x == x_lim-1: walls += 1
         if y == 1: walls += 1
-        if y == ylim-1: walls += 1
+        if y == y_lim-1: walls += 1
         return walls
 
 
