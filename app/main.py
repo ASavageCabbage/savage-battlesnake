@@ -70,9 +70,10 @@ def move():
             snake AI must choose a direction to move in.
     """
     # Unpack game data
-    print(json.dumps(data, indent=4))
+    #print(json.dumps(data, indent=4))
     game_id = data["game"]["id"]
     turn = data["turn"]
+    print "\n===== TURN {} =====".format(turn)
 
     b_width = data["board"]["width"]
     b_height = data["board"]["height"]

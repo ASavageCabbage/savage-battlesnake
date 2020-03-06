@@ -3,11 +3,12 @@ import math
 
 # Should probably move these into a separate config file
 # or make them static class attributes
-DEATH = 10
+DEATH = 50
 HILLTOP = -DEATH # Value for all points from which to propagate hills
-DANGER = 1
-FOOD = -1 # Value for all points from which to propogate wells
-DECAYFACTOR = 0.5
+DANGER = 10
+FOOD = -5 # Value for all points from which to propogate wells
+DECAYFACTOR_A = 1
+DECAYFACTOR_B = 0.4
 MOVE_DICT = {
     'up': (0, -1),
     'down': (0, 1),
@@ -41,33 +42,37 @@ class Arena(object):
         # Initialize player head and tail
         self.head = kwargs.get('player_h', {'x':0, 'y':0})
         self.tail = kwargs.get('player_t', {'x':0, 'y':0})
+
+        # ====== SET TOPS OF HILLS AND WELLS =====
         # Mark positions of food
-        self.foods = kwargs.get('foods', [])
-        for food in self.foods:
-            self._position_grid[food['x']][food['y']] = FOOD
-        # Mark obstacles (certain death zones)
-        obstacles = kwargs.get('obstacles', [])
-        for obs in obstacles:
-            self._position_grid[obs['x']][obs['y']] = DEATH
+        self.foods = [(food['x'], food['y']) for food in kwargs.get('foods', [])]
+        for fx, fy in self.foods:
+            self._position_grid[fx][fy] = FOOD
         # Mark danger zones around opponent heads and tails
         ends = kwargs.get('ends', [])
+        self.hilltops = []
         for hd, tl in ends:
-            # Squares around head are dangerous
             hx = hd['x']
             hy = hd['y']
+            self._position_grid[hx][hy] = HILLTOP
+            self.hilltops.append((hx, hy))
             tx = tl['x']
             ty = tl['y']
-            self._position_grid[hx][hy] = HILLTOP
             danger_zone = [
                 (hx-1,hy),
                 (hx+1,hy),
                 (hx,hy-1),
                 (hx,hy+1)
             ]
+            # Enemy snake tails are dangerous if enemy snake in proximity of food
             if ([coord for coord in self.foods if coord in danger_zone]
                 and self._position_grid[tx][ty] < DANGER):
                 self._position_grid[tx][ty] = DANGER
         self.find_hills_wells()
+        # Mark obstacles (certain death zones)
+        obstacles = kwargs.get('obstacles', [])
+        for obs in obstacles:
+            self._position_grid[obs['x']][obs['y']] = DEATH
 
 
     def find_hills_wells(self):
@@ -76,14 +81,12 @@ class Arena(object):
         '''
         # Iterate over arena
         x_len, y_len = self.dimensions
-        for x in range(x_len):
-            for y in range(y_len):
-                # If current grid point is hilltop set it to death and create hill centred on it
-                if self._position_grid[x][y] == HILLTOP:
-                    self.propagate_hills(x, y)
-                # If current point is well then propagate well on that point.
-                elif self._position_grid[x][y] == FOOD:
-                    self.propagate_wells(x, y)
+        # propogate wells
+        for x, y in self.foods:
+            self.propagate_wells(x, y)
+        # propogate hills last to "override" food
+        for x, y in self.hilltops:
+            self.propagate_hills(x, y)
         # Invert hilltops
         self.invert_hilltops()
 
@@ -98,10 +101,10 @@ class Arena(object):
         for x in range(x_len):
             for y in range(y_len):
                 value = self._position_grid[x][y]
-                if value in [HILLTOP, FOOD]:
+                if value == HILLTOP:
                     continue
                 distance = math.sqrt((hillx - x)**2 + (hilly - y)**2)
-                self._position_grid[x][y] += self.decay_function(value, distance)
+                self._position_grid[x][y] += self.decay_function(abs(HILLTOP), DECAYFACTOR_B, distance)
 
    
     def propagate_wells(self, wellx, welly):
@@ -117,20 +120,19 @@ class Arena(object):
                 if value in [HILLTOP, FOOD]:
                     continue
                 distance = math.sqrt((wellx - x)**2 + (welly - y)**2)
-                self._position_grid[x][y] -= self.decay_function(value, distance)
+                self._position_grid[x][y] -= self.decay_function(abs(FOOD), DECAYFACTOR_B, distance)
 
 
     def invert_hilltops(self):
         '''Flip values of all HILLTOPS from negative to positive'''
-        for x in range(x_len):
-            for y in range(y_len):
-                if self._position_grid[x][y] == HILLTOP:
-                    self._position_grid[x][y] = abs(self._position_grid[x][y])
+        for x, y in self.hilltops:
+            self._position_grid[x][y] = abs(self._position_grid[x][y])
 
 
-    def decay_function(self, scale, x):
-        # Exponential decay f(x) = (1-a)^x
-        return scale*(1-DECAYFACTOR)**x
+    def decay_function(self, a, b, x):
+        # Exponential decay f(x) = a(1-b)^x
+        return a*(1-b)**x
+
 
     def check_move(self, move):
         '''Checks if move is legal (not certain death)
@@ -152,7 +154,7 @@ class Arena(object):
             self._position_grid[self.tail['x']][self.tail['y']] = DEATH
         return self._position_grid[new_pos[0]][new_pos[1]] < DEATH
 
-    # Hey, this still works in the new paradigm! FORWARD THINKING
+
     def rank_moves(self):
         '''Returns a ranked list of all legal moves in order of safety rating
         
@@ -169,9 +171,17 @@ class Arena(object):
                     move
                 ))
         legal_moves.sort()
-        return legal_moves
+        print legal_moves
+        return [move for _, move in legal_moves]
 
-    def print_arena():
+
+    def print_arena(self):
         '''Debugging function that generates a plaintext representation of the current arena state'''
-        # LMAO numpy already has a function for this
-        print numpy.array_str(self._position_grid)
+        x_len, y_len = self.dimensions
+        grid_str = ""
+        for y in range(y_len):
+            for x in range(x_len):
+                grid_str += "{}, ".format(str(self._position_grid[x][y])[:4].ljust(4,' '))
+                if x == x_len - 1:
+                    grid_str += '\n'
+        print grid_str
