@@ -70,9 +70,10 @@ def move():
             snake AI must choose a direction to move in.
     """
     # Unpack game data
-    print(json.dumps(data, indent=4))
+    #print(json.dumps(data, indent=4))
     game_id = data["game"]["id"]
     turn = data["turn"]
+    print "\n===== TURN {} =====".format(turn)
 
     b_width = data["board"]["width"]
     b_height = data["board"]["height"]
@@ -98,16 +99,11 @@ def move():
         obstacles=obstacles,
         ends=ends,
         foods=foods
-        )   
-    # Pick a random best direction
-    directions = arena.rank_moves()
-    if directions:
-        bests = [move for rank, move in directions if rank == directions[0][0]]
-        direction = random.choice(bests)
-    # If no legal moves... time to die
-    else:
-        direction = 'up'
-
+        )
+    arena.print_arena()
+    # Pick best move from newly created heatmap
+    direction = arena.rank_moves()[0]
+    print "Moving {}".format(direction)
     return move_response(direction)
 
 
