@@ -8,12 +8,11 @@ from api import ping_response, start_response, move_response, end_response
 from utils.arena import Arena
 
 # Set log level
-if len(argv) > 1:
+LOG_LEVEL = 'DEBUG'
+if len(argv) > 1 and hasattr(logging, argv[1]):
     LOG_LEVEL = argv[1]
-else:
-    LOG_LEVEL = 'DEBUG'
+logging.basicConfig(level=getattr(logging, LOG_LEVEL))
 logger = logging.getLogger()
-logger.setLevel(LOG_LEVEL)
 
 # Constants
 COLOR = '#993333'

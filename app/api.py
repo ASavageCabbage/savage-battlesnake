@@ -6,7 +6,7 @@ def ping_response():
         status=200
     )
 
-def start_response(color="#00FF00", head="regular", tail="regular"):
+def start_response(color, head, tail):
     assert type(color) is str, \
         "Color value must be string"
     assert type(head) is str, \
