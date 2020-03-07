@@ -1,4 +1,5 @@
 import math
+import logging
 import numpy
 
 
@@ -66,6 +67,7 @@ class Arena(object):
         width -- width of arena (positive integer)
         height -- height of arena (positive integer)
         '''
+        self.logger = logging.getLogger(type(self).__name__)
         self.dimensions = (width, height)
 
 
@@ -148,8 +150,10 @@ class Arena(object):
     def propagate_wells(self, wellx, welly):
         '''
         Subtract from danger value of each point based on distance from well.
-        wellx - x coordinate of well centre
-        welly - y coordinate of well centre
+
+        Parameters:
+        wellx -- x coordinate of well centre
+        welly -- y coordinate of well centre
         '''
         x_len, y_len = self.dimensions
         for x in range(x_len):
@@ -168,7 +172,7 @@ class Arena(object):
 
 
     def decay_function(self, a, b, x):
-        # Exponential decay f(x) = a(1-b)^x
+        '''Exponential decay f(x) = a(1-b)^x'''
         return a*(1-b)**x
 
 
@@ -226,7 +230,7 @@ class Arena(object):
         ahead_segs = [pos for pos in self.body if pos in ahead]
         # In the case of a self-loop...
         if ahead_segs:
-            print "Potential self-loop detected!"
+            self.logger.debug("Potential self-loop detected!")
             # Use segment closest to head as marker
             ahead_seg = ahead_segs[0]
             # Calculate chirality of loop
@@ -249,7 +253,7 @@ class Arena(object):
             px, py = [seg for seg in self.body if seg != (hx, hy)][0]
             return DIR_DICT[(hx-px, hy-py)]
         except IndexError:
-            print "Snake body is all in one place, default to 'up' direction"
+            self.logger.debug("Snake body is all in one place, default to 'up' direction")
             return UP
 
 
@@ -337,17 +341,17 @@ class Arena(object):
                     move
                 ))
         legal_moves.sort()
-        print "Legal moves (in order of preference): {}".format(legal_moves)
+        self.logger.debug("Legal moves (in order of preference): {}".format(legal_moves))
         return [move for _, move in legal_moves]
 
 
-    def print_arena(self):
+    def arena_to_str(self):
         '''Debugging function that generates a plaintext representation of the current arena state'''
         x_len, y_len = self.dimensions
-        grid_str = "ARENA HEATMAP:\n"
+        grid_str = ''
         for y in range(y_len):
             for x in range(x_len):
                 grid_str += "{} ".format(str(self._position_grid[x][y])[:4].ljust(4,' '))
                 if x == x_len - 1:
                     grid_str += '\n\n'
-        print grid_str
+        return grid_str
