@@ -47,8 +47,8 @@ TURN_TO_DIRECTION = {
 
 # tweakable parameters
 DEFAULT = 1.0
-DEATH = 50.0
-HILLTOP = -DEATH # Value for all points from which to propagate hills
+DEATH = 1000.0
+HILLTOP = -50 # Value for all points from which to propagate hills
 DANGER = 10.0
 FOOD = -5.0 # Value for all points from which to propogate wells
 FORCED_DECISION = -20.0 # For when you really want the snake to choose a particular direction
@@ -119,8 +119,6 @@ class Arena(object):
         '''
         Find points to centre hills and wells at then calls propogate hills and wells accordingly
         '''
-        # Iterate over arena
-        x_len, y_len = self.dimensions
         # propogate wells
         for x, y in self.foods:
             self.propagate_wells(x, y)
@@ -140,9 +138,6 @@ class Arena(object):
         x_len, y_len = self.dimensions
         for x in range(x_len):
             for y in range(y_len):
-                value = self._position_grid[x][y]
-                if value == HILLTOP:
-                    continue
                 distance = math.sqrt((hillx - x)**2 + (hilly - y)**2)
                 self._position_grid[x][y] += self.decay_function(abs(HILLTOP), DECAYFACTOR_B, distance)
 
@@ -158,9 +153,6 @@ class Arena(object):
         x_len, y_len = self.dimensions
         for x in range(x_len):
             for y in range(y_len):
-                value = self._position_grid[x][y]
-                if value in [HILLTOP, FOOD]:
-                    continue
                 distance = math.sqrt((wellx - x)**2 + (welly - y)**2)
                 self._position_grid[x][y] -= self.decay_function(abs(FOOD), DECAYFACTOR_B, distance)
 
