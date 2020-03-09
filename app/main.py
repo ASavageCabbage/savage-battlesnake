@@ -84,8 +84,8 @@ def move():
 
     # Format data for Arena
     body = [(seg['x'], seg['y']) for seg in data['you']['body']]
-    snakes = [[(s['x'], s['y']) for s in sn['body']]
-              for sn in data['board']['snakes'] if sn['name'] != name]
+    snakes = [[(s['x'], s['y']) for s in sn['body']] for sn in data['board']['snakes']]
+    snakes = [seg for seg in snakes if seg not in body]
     foods = [(fd['x'], fd['y']) for fd in data['board']['food']]
 
     # Update arena
