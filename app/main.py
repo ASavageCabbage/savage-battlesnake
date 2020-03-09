@@ -24,6 +24,8 @@ Welcome, contestant.
 === TA\'AURIC, ASPECT OF WAR ===
 '''
 
+# Initialize arenas
+ARENAS = {}
 
 @bottle.route('/')
 def index():
@@ -61,11 +63,12 @@ def start():
         "Initializing snake with\ncolour: %s\nhead: %s\ntail: %s",
         COLOR, HEAD, TAIL)
     # Initialize global arena instance (keeps state)
-    global ARENA
+    global ARENAS
     data = bottle.request.json
+    game_id = data['game']['id']
     b_width = data['board']['width']
     b_height = data['board']['height']
-    ARENA = Arena(b_width, b_height)
+    ARENAS[game_id] = Arena(b_width, b_height)
 
     return start_response(COLOR, HEAD, TAIL)
 
@@ -73,14 +76,14 @@ def start():
 @bottle.post('/move')
 def move():
     '''Choose a direction to move!'''
-    global ARENA
+    global ARENAS
     # Unpack game data
     data = bottle.request.json
     game_id = data['game']['id']
     turn = data['turn']
     name = data['you']['name']
     health = data['you']['health']
-    logger.debug("\n===== ({}) TURN {} =====".format(name, turn))
+    logger.debug("\n===== (%s) TURN %s =====", name, turn)
 
     # Format data for Arena
     body = [(seg['x'], seg['y']) for seg in data['you']['body']]
@@ -89,18 +92,19 @@ def move():
     foods = [(fd['x'], fd['y']) for fd in data['board']['food']]
 
     # Update arena
-    ARENA.update_heatmap(body, snakes, foods)
-    logger.debug("ARENA HEATMAP:\n%s", ARENA.arena_to_str())
+    arena = ARENAS[game_id]
+    arena.update_heatmap(body, snakes, foods)
+    logger.debug("ARENA HEATMAP:\n%s", arena.arena_to_str())
     # Check for self-loops
-    ARENA.check_self_loop()
+    arena.check_self_loop()
     # Pick best move from newly created heatmap
-    directions = ARENA.rank_moves()
+    directions = arena.rank_moves()
     if directions:
         direction = directions[0]
     else:
         direction = 'up'
         logger.debug("GUESS I'LL DIE LMAO")
-    logger.debug("Moving {}".format(direction))
+    logger.debug("Moving %s", direction)
     return move_response(direction)
 
 

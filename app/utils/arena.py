@@ -333,7 +333,7 @@ class Arena(object):
                     move
                 ))
         legal_moves.sort()
-        self.logger.debug("Legal moves (in order of preference): {}".format(legal_moves))
+        self.logger.debug("Legal moves (in order of preference): %s", legal_moves)
         return [move for _, move in legal_moves]
 
 
