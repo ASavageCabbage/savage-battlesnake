@@ -113,7 +113,7 @@ def get_coord_direction(start, end):
         dir_y = 1 if dy > 0 else -1
     direction = (dir_x, dir_y)
     if direction not in DIR_DICT:
-        logger.warn(
+        logger.warning(
             "Calculated non-cardinal direction between coordinates %s and %s", start, end)
     return direction
 
