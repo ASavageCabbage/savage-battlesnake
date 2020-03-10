@@ -94,9 +94,9 @@ def move():
     # Update arena
     arena = ARENAS[game_id]
     arena.update_heatmap(body, snakes, foods)
-    # Check for self-loops
-    arena.check_self_loop()
-    # Check for wall-loops
+    # Handle self-loops
+    arena.handle_self_loop()
+    # Handle wall-loops
     arena.handle_wall_loop()
     
     logger.debug("ARENA HEATMAP:\n%s", arena.arena_to_str())
