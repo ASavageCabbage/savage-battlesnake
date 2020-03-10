@@ -94,9 +94,12 @@ def move():
     # Update arena
     arena = ARENAS[game_id]
     arena.update_heatmap(body, snakes, foods)
-    logger.debug("ARENA HEATMAP:\n%s", arena.arena_to_str())
     # Check for self-loops
     arena.check_self_loop()
+    # Check for wall-loops
+    arena.handle_wall_loop()
+    
+    logger.debug("ARENA HEATMAP:\n%s", arena.arena_to_str())
     # Pick best move from newly created heatmap
     directions = arena.rank_moves()
     if directions:
@@ -106,7 +109,6 @@ def move():
         logger.debug("GUESS I'LL DIE LMAO")
     logger.debug("Moving %s", direction)
     return move_response(direction)
-
 
 @bottle.post('/end')
 def end():
