@@ -1,5 +1,7 @@
 import math
 import logging
+
+import matplotlib.path as mplPath
 import numpy
 
 
@@ -62,6 +64,34 @@ def decay_function(a, b, x):
     return a*(1-b)**x
 
 
+def turn_state(segments):
+    '''Check overall degree of turns in a section of snake body
+
+    Parameters:
+    segments -- list of (x, y) coordinates starting at head
+    '''
+    if len(segments) < 3:
+        return 0
+    directions = []
+    prev = segments[0]
+    for seg in segments[1:]:
+        x, y = seg
+        px, py = prev
+        dx = x - px
+        dy = y - py
+        # Insert at front of list for proper order
+        directions.insert(0, DIR_DICT[(dx, dy)])
+        prev = seg
+    # Transform direction list from [a, b, c, ...]
+    # to turns corresponding to [(a, b), (b, c), ...]
+    turns = []
+    prev = directions[0]
+    for direction in directions[1:]:
+        turns.append(TURN_DICT[(prev, direction)])
+        prev = direction
+    return sum(turns)
+
+
 def enclosed_area(loop):
     '''Calculates area enclosed by a loop defined by a list of coordinates
 
@@ -79,7 +109,7 @@ def enclosed_area(loop):
         py = y
     hx, hy = loop[0]
     area += (x*hy - hx*y)
-    return abs(area / 2)
+    return math.ceil(abs(area / 2))
 
 
 class Arena(object):
@@ -132,7 +162,7 @@ class Arena(object):
                 and self._position_grid[tx][ty] < DANGER):
                 self._position_grid[tx][ty] = DANGER
         # Propogate hills and wells
-        self.find_hills_wells()
+        self._find_hills_wells()
         # Mark snake bodies as obstacles (tails are special)
         obstacles = body[:-1]
         for snake in snakes:
@@ -142,21 +172,21 @@ class Arena(object):
         self.logger.debug("head is at {}".format(self.body[0]))
 
 
-    def find_hills_wells(self):
+    def _find_hills_wells(self):
         '''
         Find points to centre hills and wells at then calls propogate hills and wells accordingly
         '''
         # propogate wells
         for x, y in self.foods:
-            self.propagate_wells(x, y)
+            self._propagate_wells(x, y)
         # propogate hills last to "override" food
         for x, y in self.hilltops:
-            self.propagate_hills(x, y)
+            self._propagate_hills(x, y)
         # Invert hilltops
-        self.invert_hilltops()
+        self._invert_hilltops()
 
 
-    def propagate_hills(self, hillx, hilly):
+    def _propagate_hills(self, hillx, hilly):
         '''
         Add to danger value of each point based on distance from hilltop
         hillx - the x coordinate of the hilltop
@@ -169,7 +199,7 @@ class Arena(object):
                 self._position_grid[x][y] += decay_function(abs(HILLTOP), DECAYFACTOR_B, distance)
 
    
-    def propagate_wells(self, wellx, welly):
+    def _propagate_wells(self, wellx, welly):
         '''
         Subtract from danger value of each point based on distance from well.
 
@@ -184,10 +214,37 @@ class Arena(object):
                 self._position_grid[x][y] -= decay_function(abs(FOOD), DECAYFACTOR_B, distance)
 
 
-    def invert_hilltops(self):
+    def _invert_hilltops(self):
         '''Flip values of all HILLTOPS from negative to positive'''
         for x, y in self.hilltops:
             self._position_grid[x][y] = abs(self._position_grid[x][y])
+        
+
+    def rank_moves(self):
+        '''Returns a ranked list of all legal moves in order of safety rating'''
+        legal_moves = []
+        hx, hy = self.body[0]
+        for move, (dx, dy) in MOVE_DICT.items():
+            if self.check_move(move):
+                legal_moves.append((
+                    self._position_grid[hx+dx][hy+dy],
+                    move
+                ))
+        legal_moves.sort()
+        self.logger.debug("Legal moves (in order of preference): %s", legal_moves)
+        return [move for _, move in legal_moves]
+
+
+    def arena_to_str(self):
+        '''Debugging function that generates a plaintext representation of the current arena state'''
+        x_len, y_len = self.dimensions
+        grid_str = ''
+        for y in range(y_len):
+            for x in range(x_len):
+                grid_str += "{} ".format(str(self._position_grid[x][y])[:4].ljust(4,' '))
+                if x == x_len - 1:
+                    grid_str += '\n\n'
+        return grid_str
 
 
     def check_move(self, move):
@@ -210,11 +267,32 @@ class Arena(object):
         
         return self._position_grid[nx][ny] < LEGAL_THRESHOLD
 
+
+    def check_direction(self):
+        '''Checks current direction snake is travelling'''
+        hx, hy = self.body[0]
+        try:
+            px, py = [seg for seg in self.body if seg != (hx, hy)][0]
+            return DIR_DICT[(hx-px, hy-py)]
+        except IndexError:
+            self.logger.debug("Snake body is all in one place, default to 'up' direction")
+            return UP
+
+
+    def within_bounds(self, coords):
+        '''Checks if coordinates are within arena boundaries
+
+        Parameters:
+        coords: (x, y) coordinates of position of interest
+        '''
+        x, y = coords
+        x_lim, y_lim = self.dimensions
+        return (x >= 0 and x < x_lim and y >= 0 and y < y_lim)
+
     
     def handle_self_loop(self):
-        '''
-        Checks if snake is about to loop in on itself
-        For now, encourages turning away from self-loops with FORCED_DECISION
+        '''Checks if snake is about to loop in on itself
+        and takes appropriate action
         '''
         curr_dir = self.check_direction()
         hx, hy = self.body[0]
@@ -247,27 +325,18 @@ class Arena(object):
             self.logger.debug("Potential self-loop detected!")
             # Use segment closest to head as marker
             ahead_seg = ahead_segs[0]
-            # Calculate chirality of loop
-            turn_state = self._turn_state(ahead_seg)
-            turn_away = CW if turn_state > 0 else CCW
-            dx, dy = MOVE_DICT[TURN_TO_DIRECTION[(curr_dir, turn_away)]]
-            # If outward turn is legal, reward outward turn
-            nx = hx+dx
-            ny = hy+dy
-            if self.within_bounds((nx, ny)):
-                next_pos_value = self._position_grid[nx][ny]
-                if next_pos_value < LEGAL_THRESHOLD:
-                    self._position_grid[nx][ny] = FORCED_DECISION
+            end_idx = self.body.index(ahead_seg)
+            body_loop = ahead_seg[:(end_idx + 1)]
+            # Make decision based on loop areas
+            self._handle_loop_decision(body_loop)
 
 
     def handle_wall_loop(self):
         '''
         Checks if snake is about to form a loop with a wall
-        For now, encourages turning toward area with larger available space with FORCED_DECISION
-
-        The smallest possible loop (1 square in corner) requires 3 body segments
+        and takes appropriate action
         '''
-        hx, hy = self.body[0]
+        # NOTE: The smallest possible loop (1 square in corner) requires 3 body segments
         self.logger.debug("{}".format(self.dimensions))
         width, height = self.dimensions
         curr_dir = self.check_direction()
@@ -283,83 +352,43 @@ class Arena(object):
             self.logger.debug("body_loop: {}".format(body_loop))
             body_wall_loop = self._gen_wall_perimeter(body_loop)
             self.logger.debug("body_wall_loop: {}".format(body_wall_loop))
-            in_loop_area, out_loop_area = self._compare_areas(body_wall_loop)
-            # Calculate chirality of loop
-            turn_state = self._turn_state(body_loop[-1])
-            turn_inward = (in_loop_area > out_loop_area)
-            # We've been turning cw
-            if turn_state < 0:
-                next_turn = CW if turn_inward else CCW
-            # We've been turning ccw, or snake is bisecting play area (inward defined as left/ccw)
-            else:
-                next_turn = CCW if turn_inward else CW
-            next_dir = TURN_TO_DIRECTION[(curr_dir, next_turn)]
-            dx, dy = MOVE_DICT[next_dir]
-            # Reward turning toward larger play area if legal
-            nx = hx+dx
-            ny = hy+dy
-            if self.within_bounds((nx, ny)):
-                next_pos_value = self._position_grid[nx][ny]
-                if next_pos_value < LEGAL_THRESHOLD:
-                    self._position_grid[nx][ny] = FORCED_DECISION
-            self.logger.debug("Turn State: %s", turn_state)
-            self.logger.debug("The outside has an area of %s", out_loop_area)
-            self.logger.debug("The inside has an area of %s", in_loop_area)
-            self.logger.debug("I'm going to turn to the %s", next_dir)
+            self._handle_loop_decision(body_wall_loop)
 
 
-    def check_direction(self):
-        '''Checks current direction snake is travelling'''
-        hx, hy = self.body[0]
-        try:
-            px, py = [seg for seg in self.body if seg != (hx, hy)][0]
-            return DIR_DICT[(hx-px, hy-py)]
-        except IndexError:
-            self.logger.debug("Snake body is all in one place, default to 'up' direction")
-            return UP
-
-
-    def within_bounds(self, coords):
-        '''Checks if coordinates are within arena boundaries
+    def _handle_loop_decision(self, loop):
+        '''Given an enclosing loop starting at head,
+        encourages turning toward area with larger available space with FORCED_DECISION
 
         Parameters:
-        coords: (x, y) coordinates of position of interest
+        loop -- list of (x, y) coordinates starting at head defining an enclosed region
         '''
-        x, y = coords
-        x_lim, y_lim = self.dimensions
-        return (x >= 0 and x < x_lim and y >= 0 and y < y_lim)
-
-
-    def _turn_state(self, stop):
-        '''Check degree of turns from head to specified body segment
-
-        Parameters:
-        stop -- (x, y) coordinates of body segment at which to end calculation
-        '''
-        self.logger.debug("Turn State Function:")
-        directions = []
-        prev = self.body[0]
-        if stop == prev:
-            self.logger.warn("Why are you asking for turn_state of only the head?")
-            return 0
-        for seg in self.body[1:]:
-            x, y = seg
-            px, py = prev
-            dx = x - px
-            dy = y - py
-            # Insert at front of list for proper order
-            directions.insert(0, DIR_DICT[(dx, dy)])
-            if seg == stop:
-                break
-            prev = seg
-        # Transform direction list from [a, b, c, ...]
-        # to turns corresponding to [(a, b), (b, c), ...]
-        turns = []
-        prev = directions[0]
-        for direction in directions[1:]:
-            turns.append(TURN_DICT[(prev, direction)])
-            prev = direction
-        return sum(turns)
+        hx, hy = loop[0]
+        curr_dir = self.check_direction()
+        # Compare inner and outer areas
+        in_loop_area, out_loop_area = self._compare_areas(loop)
+        # Calculate chirality of loop
+        turn_state = turn_state(loop)
+        turn_inward = (in_loop_area > out_loop_area)
+        # CW case
+        if turn_state < 0:
+            next_turn = CW if turn_inward else CCW
+        # CCW case, or snake is bisecting play area
+        # (turn_state 0; "inward" defined as left/ccw)
+        else:
+            next_turn = CCW if turn_inward else CW
+        next_dir = TURN_TO_DIRECTION[(curr_dir, next_turn)]
+        dx, dy = MOVE_DICT[next_dir]
+        # Reward turning toward larger play area if legal
+        nx = hx+dx
+        ny = hy+dy
+        if self.within_bounds((nx, ny)):
+            next_pos_value = self._position_grid[nx][ny]
+            if next_pos_value < LEGAL_THRESHOLD:
+                self._position_grid[nx][ny] = FORCED_DECISION
+        self.logger.debug("Turn State: %s", turn_state)
+        self.logger.debug("The outside has an area of %s", out_loop_area)
+        self.logger.debug("The inside has an area of %s", in_loop_area)
+        self.logger.debug("I'm going to turn to the %s", next_dir)
 
 
     def _run_into_wall(self, move):
@@ -398,9 +427,19 @@ class Arena(object):
         Parameters:
         loop -- list of (x,y) coordinates defining an enclosed polygonal area
         '''
-        inner_area = enclosed_area(loop)
+        inner_area = 0
+        outer_area = 0
         width, height = self.dimensions
-        outer_area = width*height - inner_area
+        head = self.body[0]
+        bounding_path = mplPath.Path(numpy.array(loop))
+        for y in range(height):
+            for x in range(width):
+                value = self._position_grid[x][y]
+                incr = 1 if (value < LEGAL_THRESHOLD and (x,y) != head) else 0
+                if bounding_path.contains_point(point):
+                    inner_area += incr
+                else:
+                    outer_area += incr
         return inner_area, outer_area
 
     
@@ -500,30 +539,3 @@ class Arena(object):
                         loop.append((width, height))
                 loop.append((hx, hdy))
         return loop
-        
-
-    def rank_moves(self):
-        '''Returns a ranked list of all legal moves in order of safety rating'''
-        legal_moves = []
-        hx, hy = self.body[0]
-        for move, (dx, dy) in MOVE_DICT.items():
-            if self.check_move(move):
-                legal_moves.append((
-                    self._position_grid[hx+dx][hy+dy],
-                    move
-                ))
-        legal_moves.sort()
-        self.logger.debug("Legal moves (in order of preference): %s", legal_moves)
-        return [move for _, move in legal_moves]
-
-
-    def arena_to_str(self):
-        '''Debugging function that generates a plaintext representation of the current arena state'''
-        x_len, y_len = self.dimensions
-        grid_str = ''
-        for y in range(y_len):
-            for x in range(x_len):
-                grid_str += "{} ".format(str(self._position_grid[x][y])[:4].ljust(4,' '))
-                if x == x_len - 1:
-                    grid_str += '\n\n'
-        return grid_str
