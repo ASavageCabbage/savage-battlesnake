@@ -251,18 +251,21 @@ class Arena(object):
         width, height = self.dimensions
         curr_dir = self.check_direction()
         is_on_wall = [bool(self._on_walls(seg)) for seg in self.body]
-        if self._run_into_wall(curr_dir) and any(is_on_wall[2:]):
+        if self._run_into_wall(curr_dir) and any(is_on_wall[2:])):
+            self.logger.debug("Wall Loop Detected!")
             # Get section of body forming loop with wall
             # May need to stop after first body segment touching wall. Otherwise if snake forms multiple wall loops there are big issues.
             for i in range(len(is_on_wall))[2:]:
                 if is_on_wall[i]:
                     body_loop = self.body[:i + 1]
                     break
+            self.logger.debug("body_loop: {}".format(body_loop))
+            turn_state = self._turn_state(body_loop[-1])
             body_wall_loop = self._find_wall_perimeter(body_loop)
+            self.logger.debug("body_wall_loop: {}".format(body_wall_loop))
             in_loop_area = self._enclosed_area(body_wall_loop)
             out_loop_area = width*height - in_loop_area
             # Calculate chirality of loop
-            turn_state = self._turn_state(body_loop[-1])
             
             turnx = 0
             turny = 0
@@ -308,15 +311,17 @@ class Arena(object):
         Parameters:
         stop -- (x, y) coordinates of body segment at which to end calculation
         '''
+        self.logger.debug("Turn State Function:")
         directions = []
         prev = self.body[0]
-        for seg in self.body:
-            if seg == prev:
-                continue
+        if stop == prev:
+            self.logger.warn("Why are you asking for turn_state of only the head?")
+            return 0
+        for seg in self.body[1:]:
             x, y = seg
             px, py = prev
-            dx = px - x
-            dy = py - y
+            dx = x - px
+            dy = y - py
             # Insert at front of list for proper order
             directions.insert(0, DIR_DICT[(dx, dy)])
             if seg == stop:
@@ -326,11 +331,7 @@ class Arena(object):
         # to turns corresponding to [(a, b), (b, c), ...]
         turns = []
         prev = directions[0]
-        self.logger.debug("Turn State Directions:")
-        for direction in directions:
-            self.logger.debug("{}".format(direction))
-            if direction == prev:
-                continue
+        for direction in directions[1:]:
             turns.append(TURN_DICT[(prev, direction)])
             prev = direction
         return sum(turns)
