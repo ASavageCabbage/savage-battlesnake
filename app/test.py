@@ -89,7 +89,7 @@ ONE_SQUARE_LOOP_UP_EDGE = [(y,x) for x,y in ONE_SQUARE_LOOP_LT_EDGE]
 assert arena_decision(WIDTH, HEIGHT, ONE_SQUARE_LOOP_UP_EDGE, foods=[(4,3)]) == UP
 ONE_SQUARE_LOOP_DN_EDGE = [(y,x) for x,y in ONE_SQUARE_LOOP_RT_EDGE]
 assert arena_decision(WIDTH, HEIGHT, ONE_SQUARE_LOOP_DN_EDGE, foods=[(4,3)]) == UP
-logging.debug("Basic self-loop avoidance tests passed!")
+logging.info("Basic self-loop avoidance tests passed!")
 
 # ==== Test wall-loop avoidance ====
 # 0 corner cases
@@ -101,3 +101,20 @@ NO_CORNER_LOOP_UP = [(y, x) for x,y in NO_CORNER_LOOP_LT]
 assert arena_decision(WIDTH, HEIGHT, NO_CORNER_LOOP_UP, foods=[(3,0)]) == LT
 NO_CORNER_LOOP_DN = [(x, HEIGHT-1-y) for x,y in NO_CORNER_LOOP_UP]
 assert arena_decision(WIDTH, HEIGHT, NO_CORNER_LOOP_DN, foods=[(3,HEIGHT-1)]) == LT
+logging.info("0 corner wall-loop tests passed!")
+# 1 corner cases
+ONE_CORNER_LOOP_UL = [(0,3),(1,3),(2,3),(2,2),(2,1),(2,0)]
+assert arena_decision(WIDTH, HEIGHT, ONE_CORNER_LOOP_UL, foods=[(0,0)]) == DN
+ONE_CORNER_LOOP_UR = [(WIDTH-1-x, y) for x,y in ONE_CORNER_LOOP_UL]
+assert arena_decision(WIDTH, HEIGHT, ONE_CORNER_LOOP_UR, foods=[(WIDTH-1,0)]) == DN
+ONE_CORNER_LOOP_LL = [(x, HEIGHT-1-y) for x,y in ONE_CORNER_LOOP_UR]
+assert arena_decision(WIDTH, HEIGHT, ONE_CORNER_LOOP_LL, foods=[(0,HEIGHT-1)]) == UP
+ONE_CORNER_LOOP_LR = [(WIDTH-1-x, y) for x,y in ONE_CORNER_LOOP_LL]
+assert arena_decision(WIDTH, HEIGHT, ONE_CORNER_LOOP_LR, foods=[(WIDTH-1,HEIGHT-1)]) == UP
+logging.info("1 corner wall-loop tests passed!")
+# 2 corner cases
+TWO_CORNER_DN = [(0,2),(1,2),(2,2),(2,1),(2,2),(3,2),(3,3),(4,3),(5,3),(5,2),(5,1),(6,1)]
+assert arena_decision(WIDTH, HEIGHT, TWO_CORNER_DN, foods=[(0,0)]) == DN
+TWO_CORNER_UP = TWO_CORNER_DN[::-1]
+assert arena_decision(WIDTH, HEIGHT, TWO_CORNER_DN, foods=[(WIDTH-1,0)]) == DN
+logging.info("2 corner wall-loop tests passed!")
