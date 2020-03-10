@@ -5,6 +5,8 @@ import matplotlib.path as mplPath
 import numpy
 
 
+logger = logging.getLogger(__name__)
+
 # CONSTANTS
 UP = 'up'
 DN = 'down'
@@ -70,15 +72,13 @@ def get_turn_state(segments):
     Parameters:
     segments -- list of (x, y) coordinates starting at head
     '''
+    logger.debug("Getting turn state for body: %s", segments)
     if len(segments) < 3:
         return 0
     directions = []
     prev = segments[0]
     for seg in segments[1:]:
-        x, y = seg
-        px, py = prev
-        dx = x - px
-        dy = y - py
+        dx, dy = get_coord_direction(start=seg, end=prev)
         # Insert at front of list for proper order
         directions.insert(0, DIR_DICT[(dx, dy)])
         prev = seg
@@ -90,6 +90,32 @@ def get_turn_state(segments):
         turns.append(TURN_DICT[(prev, direction)])
         prev = direction
     return sum(turns)
+
+
+def get_coord_direction(start, end):
+    '''Given two points, find the coordinate direction from start to end
+
+    Params:
+    start -- (x, y) coordinates of start point
+    end -- (x, y) coordinates of end point
+
+    Returns: One of (0,1), (1,0), (0,-1), (-1,0)
+    '''
+    ex, ey = end
+    px, py = start
+    dx = ex - px
+    dir_x = 0
+    if dx != 0:
+        dir_x = 1 if dx > 0 else -1
+    dy = ey - py
+    dir_y = 0
+    if dy != 0:
+        dir_y = 1 if dy > 0 else -1
+    direction = (dir_x, dir_y)
+    if direction not in DIR_DICT:
+        logger.warn(
+            "Calculated non-cardinal direction between coordinates %s and %s", start, end)
+    return direction
 
 
 def enclosed_area(loop):
@@ -169,7 +195,7 @@ class Arena(object):
             obstacles.extend(snake[:-1])
         for x, y in obstacles:
             self._position_grid[x][y] = DEATH
-        self.logger.debug("head is at {}".format(self.body[0]))
+        self.logger.debug("head is at %s", self.body[0])
 
 
     def _find_hills_wells(self):
@@ -322,12 +348,11 @@ class Arena(object):
         ahead_segs = [pos for pos in self.body if pos in ahead]
         # In the case of a self-loop...
         if ahead_segs:
-            self.logger.debug("Potential self-loop detected!")
+            self.logger.debug("Self-loop detected!")
             # Use segment closest to head as marker
             ahead_seg = ahead_segs[0]
             end_idx = self.body.index(ahead_seg)
             body_loop = self.body[:(end_idx+1)]
-            self.logger.debug("Self-loop body: %s", body_loop)
             # Make decision based on loop areas
             self._handle_loop_decision(body_loop)
 
@@ -343,16 +368,14 @@ class Arena(object):
         curr_dir = self.check_direction()
         is_on_wall = [bool(self._on_walls(seg)) for seg in self.body]
         if self._run_into_wall(curr_dir) and any(is_on_wall[2:]):
-            self.logger.debug("Wall Loop Detected!")
+            self.logger.debug("Wall-loop detected!")
             # Get section of body forming loop with wall
             # May need to stop after first body segment touching wall. Otherwise if snake forms multiple wall loops there are big issues.
             for i in range(len(is_on_wall))[2:]:
                 if is_on_wall[i]:
                     body_loop = self.body[:(i+1)]
                     break
-            self.logger.debug("body_loop: {}".format(body_loop))
             body_wall_loop = self._gen_wall_perimeter(body_loop)
-            self.logger.debug("body_wall_loop: {}".format(body_wall_loop))
             self._handle_loop_decision(body_wall_loop)
 
 
