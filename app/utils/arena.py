@@ -64,7 +64,7 @@ def decay_function(a, b, x):
     return a*(1-b)**x
 
 
-def turn_state(segments):
+def get_turn_state(segments):
     '''Check overall degree of turns in a section of snake body
 
     Parameters:
@@ -326,7 +326,8 @@ class Arena(object):
             # Use segment closest to head as marker
             ahead_seg = ahead_segs[0]
             end_idx = self.body.index(ahead_seg)
-            body_loop = ahead_seg[:(end_idx + 1)]
+            body_loop = self.body[:(end_idx+1)]
+            self.logger.debug("Self-loop body: %s", body_loop)
             # Make decision based on loop areas
             self._handle_loop_decision(body_loop)
 
@@ -341,7 +342,7 @@ class Arena(object):
         width, height = self.dimensions
         curr_dir = self.check_direction()
         is_on_wall = [bool(self._on_walls(seg)) for seg in self.body]
-        if self._run_into_wall(curr_dir) and any(is_on_wall[2:])):
+        if self._run_into_wall(curr_dir) and any(is_on_wall[2:]):
             self.logger.debug("Wall Loop Detected!")
             # Get section of body forming loop with wall
             # May need to stop after first body segment touching wall. Otherwise if snake forms multiple wall loops there are big issues.
@@ -367,7 +368,7 @@ class Arena(object):
         # Compare inner and outer areas
         in_loop_area, out_loop_area = self._compare_areas(loop)
         # Calculate chirality of loop
-        turn_state = turn_state(loop)
+        turn_state = get_turn_state(loop)
         turn_inward = (in_loop_area > out_loop_area)
         # CW case
         if turn_state < 0:
@@ -385,10 +386,10 @@ class Arena(object):
             next_pos_value = self._position_grid[nx][ny]
             if next_pos_value < LEGAL_THRESHOLD:
                 self._position_grid[nx][ny] = FORCED_DECISION
-        self.logger.debug("Turn State: %s", turn_state)
+        self.logger.debug("Turn state: %s", turn_state)
         self.logger.debug("The outside has an area of %s", out_loop_area)
         self.logger.debug("The inside has an area of %s", in_loop_area)
-        self.logger.debug("I'm going to turn to the %s", next_dir)
+        self.logger.debug("I'm going to turn: %s", next_dir)
 
 
     def _run_into_wall(self, move):
@@ -434,8 +435,9 @@ class Arena(object):
         bounding_path = mplPath.Path(numpy.array(loop))
         for y in range(height):
             for x in range(width):
+                point = (x, y)
                 value = self._position_grid[x][y]
-                incr = 1 if (value < LEGAL_THRESHOLD and (x,y) != head) else 0
+                incr = 1 if (value < LEGAL_THRESHOLD and point != head) else 0
                 if bounding_path.contains_point(point):
                     inner_area += incr
                 else:
