@@ -122,5 +122,5 @@ logging.info("1 corner wall-loop tests passed!")
 TWO_CORNER_DN = [(0,2),(1,2),(2,2),(3,2),(3,3),(4,3),(5,3),(5,2),(5,1),(6,1)]
 assert arena_decision(WIDTH, HEIGHT, TWO_CORNER_DN, foods=[(0,0)]) == DN
 TWO_CORNER_UP = TWO_CORNER_DN[::-1]
-assert arena_decision(WIDTH, HEIGHT, TWO_CORNER_DN, foods=[(WIDTH-1,0)]) == DN
+assert arena_decision(WIDTH, HEIGHT, TWO_CORNER_UP, foods=[(WIDTH-1,0)]) == DN
 logging.info("2 corner wall-loop tests passed!")
