@@ -113,7 +113,7 @@ ONE_CORNER_LOOP_LR = [(WIDTH-1-x, y) for x,y in ONE_CORNER_LOOP_LL]
 assert arena_decision(WIDTH, HEIGHT, ONE_CORNER_LOOP_LR, foods=[(WIDTH-1,HEIGHT-1)]) == UP
 logging.info("1 corner wall-loop tests passed!")
 # 2 corner cases
-TWO_CORNER_DN = [(0,2),(1,2),(2,2),(2,1),(2,2),(3,2),(3,3),(4,3),(5,3),(5,2),(5,1),(6,1)]
+TWO_CORNER_DN = [(0,2),(1,2),(2,2),(3,2),(3,3),(4,3),(5,3),(5,2),(5,1),(6,1)]
 assert arena_decision(WIDTH, HEIGHT, TWO_CORNER_DN, foods=[(0,0)]) == DN
 TWO_CORNER_UP = TWO_CORNER_DN[::-1]
 assert arena_decision(WIDTH, HEIGHT, TWO_CORNER_DN, foods=[(WIDTH-1,0)]) == DN

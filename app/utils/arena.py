@@ -72,7 +72,6 @@ def get_turn_state(segments):
     Parameters:
     segments -- list of (x, y) coordinates starting at head
     '''
-    logger.debug("Getting turn state for body: %s", segments)
     if len(segments) < 3:
         return 0
     directions = []
@@ -251,7 +250,7 @@ class Arena(object):
         legal_moves = []
         hx, hy = self.body[0]
         for move, (dx, dy) in MOVE_DICT.items():
-            if self.check_move(move):
+            if self.move_is_legal(move):
                 legal_moves.append((
                     self._position_grid[hx+dx][hy+dy],
                     move
@@ -273,7 +272,7 @@ class Arena(object):
         return grid_str
 
 
-    def check_move(self, move):
+    def move_is_legal(self, move):
         '''Checks if move is legal (not certain death)
 
         Parameters:
@@ -401,14 +400,12 @@ class Arena(object):
         else:
             next_turn = CCW if turn_inward else CW
         next_dir = TURN_TO_DIRECTION[(curr_dir, next_turn)]
-        dx, dy = MOVE_DICT[next_dir]
         # Reward turning toward larger play area if legal
-        nx = hx+dx
-        ny = hy+dy
-        if self.within_bounds((nx, ny)):
-            next_pos_value = self._position_grid[nx][ny]
-            if next_pos_value < LEGAL_THRESHOLD:
-                self._position_grid[nx][ny] = FORCED_DECISION
+        if self.move_is_legal(next_dir):
+            dx, dy = MOVE_DICT[next_dir]
+            nx = hx+dx
+            ny = hy+dy
+            self._position_grid[nx][ny] = FORCED_DECISION
         self.logger.debug("Turn state: %s", turn_state)
         self.logger.debug("The outside has an area of %s", out_loop_area)
         self.logger.debug("The inside has an area of %s", in_loop_area)
@@ -425,8 +422,7 @@ class Arena(object):
         hx, hy = self.body[0]
         nx = hx+dx
         ny = hy+dy
-        width, height = self.dimensions
-        return (nx < 0 or ny < 0 or nx >= width or ny >= height)
+        return (not self.within_bounds((nx, ny)))
 
     
     def _on_walls(self, segment):
@@ -474,93 +470,51 @@ class Arena(object):
         Parameters:
         body_loop -- an array of the coordinates of the body of the snake which form a loop with the wall.
         '''
-        self.logger.debug("find wall perimeter")
         width, height = self.dimensions
-        direction = self.check_direction()
-        dx, dy = MOVE_DICT[direction]
-        self.logger.debug("direction: {}".format((dx, dy)))
+        # Define corners just outside of arena
+        upper_left = (-1, -1)
+        upper_right = (width, -1)
+        lower_left = (-1, height)
+        lower_right = (width, height)
+        # Get head and wall vertex next to head
         hx, hy = body_loop[0]
+        hdx, hdy = get_coord_direction(body_loop[1], body_loop[0])
+        ahead_head = (hx+hdx, hy+hdy)
+        # Get tail and wall vertex next to tail
         tx, ty = body_loop[-1]
-        hdx = 0
-        hdy = 0
-        tdx = 0
-        tdy = 0
+        tdx, tdy = get_coord_direction(body_loop[-2], body_loop[-1])
+        behind_tail = (tx+tdx, ty+tdy)
         loop = body_loop
-        if direction == RT:
-            hdx = width
-            tdx = -1
-        elif direction == LT:
-            hdx = -1
-            tdx = width
-        elif direction == UP:
-            hdy = -1
-            tdy = height
-        else:
-            hdy = height
-            tdy = -1
-        #There are two corners enclosed
-        if (width -1 in [hx, tx] and 0 in [hx, tx]) or (height -1 in [hy, ty] and 0 in [hy, ty]):
+        loop.append(behind_tail) # add coordinates of wall adjacent to tail after tail
+        # Get direction of head
+        direction = DIR_DICT[(hdx, hdy)]
+        # Make sure loops are enclosed in proper vertex order!
+        # 2 corners enclosed
+        if ((width-1) in [hx, tx] and 0 in [hx, tx]) or ((height-1) in [hy, ty] and 0 in [hy, ty]):
             self.logger.debug("There are two corners enclosed")
-            #Always get the area LEFT of the snake head (from the snake's perspective)
+            # Define inner area as LEFT/CCW of the snake head (from the snake's perspective)
             if direction == RT:
-                loop.extend([(tdx, ty), (-1, -1), (width + 1, -1), (hdx, hy)])
+                loop.extend([upper_left, upper_right])
             elif direction == LT:
-                loop.extend([(tdx, ty), (-1, height), (width, height), (hdx, hy)])
+                loop.extend([lower_right, lower_left])
             elif direction == UP:
-                loop.extend([(tx, tdy), (-1, -1), (-1, height),  (hx, hdy)])
+                loop.extend([lower_left, upper_left])
             else:
-                loop.extend([(tx, tdy), (width, height),  (width, -1), (hx, hdy)])
-        #There are no corners enclosed
+                loop.extend([upper_right, lower_right])
+        # 0 corners enclosed
         elif (hx == tx or hy == ty):
+            # Case is already handled by adding wall vertices next to head and tail
             self.logger.debug("There are no corners enclosed")
-            # The loop is against either the right or left wall
-            if (direction in [RT, LT]):
-                loop.extend([(hdx, ty), (hdx, hy)])
-            # The loop is against either the top or bottom wall
-            else:
-                loop.extend([(tx, hdy), (hx, hdy)])
-        #There is one corner enclosed
+        # 1 corner enclosed
         else:
             self.logger.debug("There is one corner enclosed")
-            if (direction in [RT, LT]):
-                #top corner
-                if ty == 0:
-                    loop.append((tx, -1))
-                    # top right
-                    if direction == RT:
-                        loop.append((width, -1))
-                    #top left
-                    else:
-                         loop.append((-1, -1))
-                #bottom corner
-                else:
-                    loop.append((tx, height))
-                    #bottom right
-                    if direction == RT:
-                        loop.append((width, height))
-                    #bottom left
-                    else:
-                         loop.append((-1, height))
-                loop.append((hdx, hy))
+            if (hx == 0 and ty == 0) or (tx == 0 and hy == 0):
+                loop.append(upper_left)
+            elif (hx == (width-1) and ty == 0) or (tx == (width-1) and hy == 0):
+                loop.append(upper_right)
+            elif (hx == 0 and ty == (height-1)) or (tx == 0 and hy == (height-1)):
+                loop.append(lower_left)
             else:
-                #head is at either top or bottom.
-                #left corner
-                if tx == 0:
-                    loop.append((-1, ty))
-                    # top left
-                    if direction == UP:
-                        loop.append((-1, -1))
-                    #bottom left
-                    if direction == DN:
-                        loop.append((-1, height))
-                #right corner
-                else:
-                    loop.append((width, ty))
-                    # top right
-                    if direction == UP:
-                        loop.append((width, -1))
-                    #bottom right
-                    if direction == DN:
-                        loop.append((width, height))
-                loop.append((hx, hdy))
+                loop.append(lower_right)
+        loop.append(ahead_head) # add coordinates of wall adjacent to head at the very end
         return loop
