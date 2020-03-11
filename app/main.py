@@ -27,6 +27,21 @@ Welcome, contestant.
 # Initialize arenas
 ARENAS = {}
 
+
+def update(arena, **kwargs):
+    '''Wrapper calling Arena methods in appropriate order to update state'''
+    # Update attributes
+    arena.update_attributes(**kwargs)
+    # Update heatmap
+    arena.update_heatmap()
+    # Mark hard obstacles
+    arena.update_obstacles()
+    # Handle self-loops
+    arena.handle_self_loop()
+    # Handle wall-loops
+    arena.handle_wall_loop()
+
+
 @bottle.route('/')
 def index():
     return '''
@@ -93,12 +108,16 @@ def move():
 
     # Update arena
     arena = ARENAS[game_id]
-    arena.update_heatmap(body, snakes, foods)
-    # Handle self-loops
-    arena.handle_self_loop()
-    # Handle wall-loops
-    arena.handle_wall_loop()
-    
+    update(
+        arena,
+        body=body,
+        snakes=snakes,
+        foods=foods,
+        health=health,
+        turn=turn,
+        name=name,
+        game_id=game_id
+    )
     logger.debug("ARENA HEATMAP:\n%s", arena.arena_to_str())
     # Pick best move from newly created heatmap
     directions = arena.rank_moves()
@@ -113,6 +132,10 @@ def move():
 @bottle.post('/end')
 def end():
     '''Clean up any stateful objects'''
+    data = bottle.request.json
+    game_id = data['game']['id']
+    global ARENAS
+    del ARENAS[game_id]
     return end_response()
 
 

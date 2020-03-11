@@ -150,51 +150,60 @@ class Arena(object):
         '''
         self.logger = logging.getLogger(type(self).__name__)
         self.dimensions = (width, height)
+        self._position_grid = numpy.full(self.dimensions, DEFAULT)
 
 
-    def update_heatmap(self, body, snakes, foods):
-        '''Update heatmap of risks/rewards
-
-        Parameters:
+    def update_attributes(self, **kwargs):
+        '''Set arbitrary attributes with this function
+        
+        Known attributes:
         body -- List of (x, y) coordinates of player body segments (head to tail)
         snakes -- List of (x, y) coordinates of opponent snakes
         foods -- List of (x, y) coordinates of food
         '''
-        # Initialize array to non-zero default value (1)
+        REQUIRED = ['body', 'snakes', 'foods']
+        missing = [key for key in REQUIRED if key not in kwargs]
+        if missing:
+            self.logger.warning("Calling update_attributes without required attributes: %s", missing)
+        for key in kwargs:
+            setattr(self, key, kwargs[key])
+
+
+    def update_heatmap(self):
+        '''Update heatmap of risks/rewards'''
+        # Reset array to non-zero default value
         self._position_grid = numpy.full(self.dimensions, DEFAULT)
-        # Initialize player body
-        self.body = body
         # Mark positions of food
-        self.foods = foods
         for x, y in self.foods:
             self._position_grid[x][y] = FOOD
-        # Mark danger zones around opponent heads and tails
-        ends = [(snake[0], snake[-1]) for snake in snakes]
-        self.hilltops = []
-        for hd, tl in ends:
-            hx, hy = hd
-            self._position_grid[hx][hy] = HILLTOP
-            self.hilltops.append((hx, hy))
+        # Propogate hilltops
+        self.hilltops = [snake[0] for snake in self.snakes]
+        for x, y in self.hilltops:
+            self._position_grid[x][y] = HILLTOP
+        # Propogate hills and wells
+        self._find_hills_wells()
+
+
+    def update_obstacles(self):
+        # Mark snake bodies as obstacles (tails are special)
+        obstacles = self.body[:-1]
+        for snake in self.snakes:
+            obstacles.extend(snake[:-1])
+        for x, y in obstacles:
+            self._position_grid[x][y] = DEATH
+        for snake in self.snakes:
+            # Enemy snake tails are dangerous if enemy snake head is in proximity of food
+            hx, hy = snake[0]
             danger_zone = [
                 (hx-1,hy),
                 (hx+1,hy),
                 (hx,hy-1),
                 (hx,hy+1)
             ]
-            # Enemy snake tails are dangerous if enemy snake in proximity of food
-            tx, ty = tl
+            tx, ty = snake[-1]
             if ([coord for coord in self.foods if coord in danger_zone]
                 and self._position_grid[tx][ty] < DANGER):
                 self._position_grid[tx][ty] = DANGER
-        # Propogate hills and wells
-        self._find_hills_wells()
-        # Mark snake bodies as obstacles (tails are special)
-        obstacles = body[:-1]
-        for snake in snakes:
-            obstacles.extend(snake[:-1])
-        for x, y in obstacles:
-            self._position_grid[x][y] = DEATH
-        self.logger.debug("head is at %s", self.body[0])
 
 
     def _find_hills_wells(self):
@@ -293,7 +302,7 @@ class Arena(object):
         return self._position_grid[nx][ny] < LEGAL_THRESHOLD
 
 
-    def check_direction(self):
+    def get_head_direction(self):
         '''Checks current direction snake is travelling'''
         hx, hy = self.body[0]
         try:
@@ -303,23 +312,12 @@ class Arena(object):
             self.logger.debug("Snake body is all in one place, default to 'up' direction")
             return UP
 
-
-    def within_bounds(self, coords):
-        '''Checks if coordinates are within arena boundaries
-
-        Parameters:
-        coords: (x, y) coordinates of position of interest
-        '''
-        x, y = coords
-        x_lim, y_lim = self.dimensions
-        return (x >= 0 and x < x_lim and y >= 0 and y < y_lim)
-
     
     def handle_self_loop(self):
         '''Checks if snake is about to loop in on itself
         and takes appropriate action
         '''
-        curr_dir = self.check_direction()
+        curr_dir = self.get_head_direction()
         hx, hy = self.body[0]
         fx, fy = MOVE_DICT[curr_dir]
         # Check three blocks perpendicular to head
@@ -364,7 +362,7 @@ class Arena(object):
         # NOTE: The smallest possible loop (1 square in corner) requires 3 body segments
         self.logger.debug("{}".format(self.dimensions))
         width, height = self.dimensions
-        curr_dir = self.check_direction()
+        curr_dir = self.get_head_direction()
         is_on_wall = [bool(self._on_walls(seg)) for seg in self.body]
         if self._run_into_wall(curr_dir) and any(is_on_wall[2:]):
             self.logger.debug("Wall-loop detected!")
@@ -386,7 +384,7 @@ class Arena(object):
         loop -- list of (x, y) coordinates starting at head defining an enclosed region
         '''
         hx, hy = loop[0]
-        curr_dir = self.check_direction()
+        curr_dir = self.get_head_direction()
         # Compare inner and outer areas
         in_loop_area, out_loop_area = self._compare_areas(loop)
         # Calculate chirality of loop
@@ -422,7 +420,18 @@ class Arena(object):
         hx, hy = self.body[0]
         nx = hx+dx
         ny = hy+dy
-        return (not self.within_bounds((nx, ny)))
+        return (not self._within_bounds((nx, ny)))
+
+
+    def _within_bounds(self, coords):
+        '''Checks if coordinates are within arena boundaries
+
+        Parameters:
+        coords: (x, y) coordinates of position of interest
+        '''
+        x, y = coords
+        x_lim, y_lim = self.dimensions
+        return (x >= 0 and x < x_lim and y >= 0 and y < y_lim)
 
     
     def _on_walls(self, segment):

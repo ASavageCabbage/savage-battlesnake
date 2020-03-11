@@ -18,7 +18,13 @@ def arena_decision(width, height, body, snakes=[], foods=[]):
     '''
     logger.debug("Beginning test...")
     arena = Arena(width, height)
-    arena.update_heatmap(body, snakes, foods)
+    arena.update_attributes(
+        body=body,
+        snakes=snakes,
+        foods=foods
+    )
+    arena.update_heatmap()
+    arena.update_obstacles()
     arena.handle_self_loop()
     arena.handle_wall_loop()
     logger.debug("ARENA STATE:\n%s", arena.arena_to_str())
