@@ -360,15 +360,16 @@ class Arena(object):
         hx, hy = head
         reached[hx][hy] = True
         next_pos = next_coord_in_direction(head, direction)
-        return self._reachable_area_helper(next_pos, reached)
+        return self._reachable_area_helper(next_pos, reached, 1)
 
 
-    def _reachable_area_helper(self, here, reached):
+    def _reachable_area_helper(self, here, reached, step):
         '''Finds reachable play area starting from here
 
         Parameters:
         here -- (x, y) coordinates of landing point
         reached -- numpy array of already reached points on arena
+        step -- moves in the future it will take to reach here
         '''
         # Out of bounds, stop
         if not self._within_bounds(here):
@@ -380,12 +381,25 @@ class Arena(object):
             return 0
         # Mark location as seen
         reached[x][y] = True
-        # Reached obstacle, stop
-        if not self._position_grid[x][y] < LEGAL_THRESHOLD:
+        # Reached definite obstacle, stop
+        step += 1
+        if not self._predict_future(step)[x][y] < LEGAL_THRESHOLD:
             return 0
         # Otherwise, increment area and search
         area = 1
         for dx, dy in MOVE_DICT.values():
             next_pos = (x+dx, y+dy)
-            area += self._reachable_area_helper(next_pos, reached)
+            area += self._reachable_area_helper(next_pos, reached, step)
         return area
+
+
+    def _predict_future(self, step):
+        '''Returns copy of position_grid with danger zones
+        removed from snake bodies for steps into the future'''
+        now_safe = self.body[-step:]
+        for snake in self.snakes:
+            now_safe.extend(snake[-step:])
+        new_grid = numpy.copy(self._position_grid)
+        for x, y in now_safe:
+            new_grid[x][y] = DEFAULT
+        return new_grid
