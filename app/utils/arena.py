@@ -158,7 +158,7 @@ class Arena(object):
         for x, y in self.foods:
             self._position_grid[x][y] = FOOD
         # Propogate hilltops
-        self.hilltops = [snake[0] for snake in self.snakes]
+        self.hilltops = [snake[0] for snake in self.snakes if len(snake) >= len(self.body)]
         for x, y in self.hilltops:
             self._position_grid[x][y] = HILLTOP
         # Propogate hills and wells
@@ -355,51 +355,57 @@ class Arena(object):
         Parameters:
         direction -- one of UP DN LT RT
         '''
-        reached = numpy.full(self.dimensions, False)
+        reached_or_obs = numpy.zeros(self.dimensions)
+        # Add obstacles
+        obstacles = self.body
+        for snake in self.snakes:
+            obstacles.extend(snake)
+        for x, y in obstacles:
+            reached_or_obs[x][y] = 1 # 1 marks obstacles
         head = self.body[0]
-        hx, hy = head
-        reached[hx][hy] = True
         next_pos = next_coord_in_direction(head, direction)
-        return self._reachable_area_helper(next_pos, reached, 1)
+        return self._reachable_area_helper(next_pos, reached_or_obs)
 
 
-    def _reachable_area_helper(self, here, reached, step):
+    def _reachable_area_helper(self, here, reached_or_obs, step=1):
         '''Finds reachable play area starting from here
 
         Parameters:
         here -- (x, y) coordinates of landing point
-        reached -- numpy array of already reached points on arena
+        reached_or_obs -- numpy array of illegal or already reached points on arena
         step -- moves in the future it will take to reach here
         '''
         # Out of bounds, stop
         if not self._within_bounds(here):
             return 0
-        # Location seen before, stop
         x, y = here
-        seen = reached[x][y]
-        if seen:
+        # Location is illegal or already seen, stop
+        if self._update_future_array(reached_or_obs, step)[x][y] > 0:
             return 0
-        # Mark location as seen
-        reached[x][y] = True
-        # Reached definite obstacle, stop
-        step += 1
-        if not self._predict_future(step)[x][y] < LEGAL_THRESHOLD:
-            return 0
-        # Otherwise, increment area and search
+        # Otherwise, increment area and search (depth-first)
+        reached_or_obs[x][y] = 2 # 2 marks already seen
         area = 1
         for dx, dy in MOVE_DICT.values():
             next_pos = (x+dx, y+dy)
-            area += self._reachable_area_helper(next_pos, reached, step)
+            area += self._reachable_area_helper(next_pos, reached_or_obs, step+1)
         return area
 
 
-    def _predict_future(self, step):
-        '''Returns copy of position_grid with danger zones
-        removed from snake bodies for steps into the future'''
+    def _update_future_array(self, array, step):
+        '''Returns an array representation of the arena with
+        each position either being legal or not
+
+        Makes last (step) body segments of enemy snakes legal zones
+
+        Parameters:
+        array: Integer array with 0 = safe, 1 = obstacle, 2 = already seen
+        step: steps into future to predict
+        '''
         now_safe = self.body[-step:]
         for snake in self.snakes:
             now_safe.extend(snake[-step:])
-        new_grid = numpy.copy(self._position_grid)
         for x, y in now_safe:
-            new_grid[x][y] = DEFAULT
-        return new_grid
+            value = array[x][y]
+            if value < 2:
+                array[x][y] = 0 # 0 marks safe
+        return array
