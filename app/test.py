@@ -25,8 +25,7 @@ def arena_decision(width, height, body, snakes=[], foods=[]):
     )
     arena.update_heatmap()
     arena.update_obstacles()
-    arena.handle_self_loop()
-    arena.handle_wall_loop()
+    arena.handle_area_choices()
     logger.debug("ARENA STATE:\n%s", arena.arena_to_str())
     directions = arena.rank_moves()
     if directions:

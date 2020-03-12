@@ -1,7 +1,6 @@
 import math
 import logging
 
-import matplotlib.path as mplPath
 import numpy
 
 
@@ -66,31 +65,6 @@ def decay_function(a, b, x):
     return a*(1-b)**x
 
 
-def get_turn_state(segments):
-    '''Check overall degree of turns in a section of snake body
-
-    Parameters:
-    segments -- list of (x, y) coordinates starting at head
-    '''
-    if len(segments) < 3:
-        return 0
-    directions = []
-    prev = segments[0]
-    for seg in segments[1:]:
-        dx, dy = get_coord_direction(start=seg, end=prev)
-        # Insert at front of list for proper order
-        directions.insert(0, DIR_DICT[(dx, dy)])
-        prev = seg
-    # Transform direction list from [a, b, c, ...]
-    # to turns corresponding to [(a, b), (b, c), ...]
-    turns = []
-    prev = directions[0]
-    for direction in directions[1:]:
-        turns.append(TURN_DICT[(prev, direction)])
-        prev = direction
-    return sum(turns)
-
-
 def get_coord_direction(start, end):
     '''Given two points, find the coordinate direction from start to end
 
@@ -115,6 +89,13 @@ def get_coord_direction(start, end):
         logger.warning(
             "Calculated non-cardinal direction between coordinates %s and %s", start, end)
     return direction
+
+
+def next_coord_in_direction(start, direction):
+    '''Given a starting point, output coordinates after moving in direction'''
+    x, y = start
+    dx, dy = MOVE_DICT[direction]
+    return (x+dx, y+dy)
 
 
 def enclosed_area(loop):
@@ -312,103 +293,6 @@ class Arena(object):
             self.logger.debug("Snake body is all in one place, default to 'up' direction")
             return UP
 
-    
-    def handle_self_loop(self):
-        '''Checks if snake is about to loop in on itself
-        and takes appropriate action
-        '''
-        curr_dir = self.get_head_direction()
-        hx, hy = self.body[0]
-        fx, fy = MOVE_DICT[curr_dir]
-        # Check three blocks perpendicular to head
-        if fx == 0:
-            # Direction is up/down
-            # Check for empty squares left/right
-            lt_clear = (hx-1, hy) not in self.body
-            rt_clear = (hx+1, hy) not in self.body
-            ahead = [(hx, hy+fy)]
-            # Extend danger zone left/right if potential loop
-            if lt_clear:
-                ahead.append((hx-1, hy+fy))
-            if rt_clear:
-                ahead.append((hx+1, hy+fy))
-        else:
-            # Direction is left/right
-            # Check for empty squares up/down
-            up_clear = (hx, hy-1) not in self.body
-            dn_clear = (hx, hy+1) not in self.body
-            ahead = [(hx+fx, hy)]
-            if up_clear:
-                ahead.append((hx+fx, hy-1))
-            if dn_clear:
-                ahead.append((hx+fx, hy+1))
-        ahead_segs = [pos for pos in self.body if pos in ahead]
-        # In the case of a self-loop...
-        if ahead_segs:
-            self.logger.debug("Self-loop detected!")
-            # Use segment closest to head as marker
-            ahead_seg = ahead_segs[0]
-            end_idx = self.body.index(ahead_seg)
-            body_loop = self.body[:(end_idx+1)]
-            # Make decision based on loop areas
-            self._handle_loop_decision(body_loop)
-
-
-    def handle_wall_loop(self):
-        '''
-        Checks if snake is about to form a loop with a wall
-        and takes appropriate action
-        '''
-        # NOTE: The smallest possible loop (1 square in corner) requires 3 body segments
-        self.logger.debug("{}".format(self.dimensions))
-        width, height = self.dimensions
-        curr_dir = self.get_head_direction()
-        is_on_wall = [bool(self._on_walls(seg)) for seg in self.body]
-        if self._run_into_wall(curr_dir) and any(is_on_wall[2:]):
-            self.logger.debug("Wall-loop detected!")
-            # Get section of body forming loop with wall
-            # May need to stop after first body segment touching wall. Otherwise if snake forms multiple wall loops there are big issues.
-            for i in range(len(is_on_wall))[2:]:
-                if is_on_wall[i]:
-                    body_loop = self.body[:(i+1)]
-                    break
-            body_wall_loop = self._gen_wall_perimeter(body_loop)
-            self._handle_loop_decision(body_wall_loop)
-
-
-    def _handle_loop_decision(self, loop):
-        '''Given an enclosing loop starting at head,
-        encourages turning toward area with larger available space with FORCED_DECISION
-
-        Parameters:
-        loop -- list of (x, y) coordinates starting at head defining an enclosed region
-        '''
-        hx, hy = loop[0]
-        curr_dir = self.get_head_direction()
-        # Compare inner and outer areas
-        in_loop_area, out_loop_area = self._compare_areas(loop)
-        # Calculate chirality of loop
-        turn_state = get_turn_state(loop)
-        turn_inward = (in_loop_area > out_loop_area)
-        # CW case
-        if turn_state < 0:
-            next_turn = CW if turn_inward else CCW
-        # CCW case, or snake is bisecting play area
-        # (turn_state 0; "inward" defined as left/ccw)
-        else:
-            next_turn = CCW if turn_inward else CW
-        next_dir = TURN_TO_DIRECTION[(curr_dir, next_turn)]
-        # Reward turning toward larger play area if legal
-        if self.move_is_legal(next_dir):
-            dx, dy = MOVE_DICT[next_dir]
-            nx = hx+dx
-            ny = hy+dy
-            self._position_grid[nx][ny] = FORCED_DECISION
-        self.logger.debug("Turn state: %s", turn_state)
-        self.logger.debug("The outside has an area of %s", out_loop_area)
-        self.logger.debug("The inside has an area of %s", in_loop_area)
-        self.logger.debug("I'm going to turn: %s", next_dir)
-
 
     def _run_into_wall(self, move):
         '''Checks if move will result in collision with arena boundaries
@@ -450,80 +334,56 @@ class Arena(object):
         return walls
 
 
-    def _compare_areas(self, loop):
-        '''Function to calculate effective play areas inside and outside a defined loop
+    def handle_area_choices(self):
+        '''Performs search algorithm in each legal direction to check if
+        there is enough area to fit the snake in each direction'''
+        direction_area = []
+        for direction in self.rank_moves():
+            area = self._reachable_area(direction)
+            direction_area.append((direction, area))
+        for direction, area in direction_area:
+            if area < len(self.body):
+                x, y = next_coord_in_direction(self.body[0], direction)
+                self._position_grid[x][y] = DANGER
+
+
+    def _reachable_area(self, direction):
+        '''Finds reachable play area in direction of head
 
         Parameters:
-        loop -- list of (x,y) coordinates defining an enclosed polygonal area
+        direction -- one of UP DN LT RT
         '''
-        inner_area = 0
-        outer_area = 0
-        width, height = self.dimensions
+        reached = numpy.full(self.dimensions, False)
         head = self.body[0]
-        bounding_path = mplPath.Path(numpy.array(loop))
-        for y in range(height):
-            for x in range(width):
-                point = (x, y)
-                value = self._position_grid[x][y]
-                incr = 1 if (value < LEGAL_THRESHOLD and point != head) else 0
-                if bounding_path.contains_point(point):
-                    inner_area += incr
-                else:
-                    outer_area += incr
-        return inner_area, outer_area
+        hx, hy = head
+        reached[hx][hy] = True
+        next_pos = next_coord_in_direction(head, direction)
+        return self._reachable_area_helper(next_pos, reached)
 
-    
-    def _gen_wall_perimeter(self, body_loop):
-        '''Appends wall vertices to the coordinate array body_loop such that the vertices all form the perimeter of the loop.
+
+    def _reachable_area_helper(self, here, reached):
+        '''Finds reachable play area starting from here
 
         Parameters:
-        body_loop -- an array of the coordinates of the body of the snake which form a loop with the wall.
+        here -- (x, y) coordinates of landing point
+        reached -- numpy array of already reached points on arena
         '''
-        width, height = self.dimensions
-        # Define corners just outside of arena
-        upper_left = (-1, -1)
-        upper_right = (width, -1)
-        lower_left = (-1, height)
-        lower_right = (width, height)
-        # Get head and wall vertex next to head
-        hx, hy = body_loop[0]
-        hdx, hdy = get_coord_direction(body_loop[1], body_loop[0])
-        ahead_head = (hx+hdx, hy+hdy)
-        # Get tail and wall vertex next to tail
-        tx, ty = body_loop[-1]
-        tdx, tdy = get_coord_direction(body_loop[-2], body_loop[-1])
-        behind_tail = (tx+tdx, ty+tdy)
-        loop = body_loop
-        loop.append(behind_tail) # add coordinates of wall adjacent to tail after tail
-        # Get direction of head
-        direction = DIR_DICT[(hdx, hdy)]
-        # Make sure loops are enclosed in proper vertex order!
-        # 2 corners enclosed
-        if ((width-1) in [hx, tx] and 0 in [hx, tx]) or ((height-1) in [hy, ty] and 0 in [hy, ty]):
-            self.logger.debug("There are two corners enclosed")
-            # Define inner area as LEFT/CCW of the snake head (from the snake's perspective)
-            if direction == RT:
-                loop.extend([upper_left, upper_right])
-            elif direction == LT:
-                loop.extend([lower_right, lower_left])
-            elif direction == UP:
-                loop.extend([lower_left, upper_left])
-            else:
-                loop.extend([upper_right, lower_right])
-        # 0 corners enclosed
-        elif (hx == tx or hy == ty):
-            # Case is already handled by adding wall vertices next to head and tail
-            self.logger.debug("There are no corners enclosed")
-        # 1 corner enclosed
-        else:
-            self.logger.debug("There is one corner enclosed")
-            if (hx == 0 and ty == 0) or (tx == 0 and hy == 0):
-                loop.append(upper_left)
-            elif (hx == (width-1) and ty == 0) or (tx == (width-1) and hy == 0):
-                loop.append(upper_right)
-            elif (hx == 0 and ty == (height-1)) or (tx == 0 and hy == (height-1)):
-                loop.append(lower_left)
-            else:
-                loop.append(lower_right)
-        loop.append(ahead_head) # add coordinates of wall adjacent to head at the very end
-        return loop
+        # Out of bounds, stop
+        if not self._within_bounds(here):
+            return 0
+        # Location seen before, stop
+        x, y = here
+        seen = reached[x][y]
+        if seen:
+            return 0
+        # Mark location as seen
+        reached[x][y] = True
+        # Reached obstacle, stop
+        if not self._position_grid[x][y] < LEGAL_THRESHOLD:
+            return 0
+        # Otherwise, increment area and search
+        area = 1
+        for dx, dy in MOVE_DICT.values():
+            next_pos = (x+dx, y+dy)
+            area += self._reachable_area_helper(next_pos, reached)
+        return area

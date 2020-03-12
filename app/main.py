@@ -36,10 +36,8 @@ def update(arena, **kwargs):
     arena.update_heatmap()
     # Mark hard obstacles
     arena.update_obstacles()
-    # Handle self-loops
-    arena.handle_self_loop()
-    # Handle wall-loops
-    arena.handle_wall_loop()
+    # Handle potential loops
+    arena.handle_area_choices()
 
 
 @bottle.route('/')
