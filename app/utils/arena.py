@@ -337,14 +337,16 @@ class Arena(object):
     def handle_area_choices(self):
         '''Performs search algorithm in each legal direction to check if
         there is enough area to fit the snake in each direction'''
-        direction_area = []
+        area_direction = []
         for direction in self.rank_moves():
             area = self._reachable_area(direction)
-            direction_area.append((direction, area))
-        for direction, area in direction_area:
+            area_direction.append((area, direction))
+        self.logger.debug("Areas in directions: %s", area_direction)
+        area_direction.sort(reverse=True)
+        for i, (area, direction) in enumerate(area_direction):
             if area < len(self.body):
                 x, y = next_coord_in_direction(self.body[0], direction)
-                self._position_grid[x][y] = DANGER
+                self._position_grid[x][y] = DANGER + 2*i
 
 
     def _reachable_area(self, direction):
